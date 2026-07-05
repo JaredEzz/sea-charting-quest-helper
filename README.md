@@ -47,9 +47,12 @@ a running list, sorted and auto-advancing, instead of "sail around and hope."
   end point without escorting the duck ([wiki](https://oldschool.runescape.wiki/w/Current_duck)),
   so waiting for it to actually stop there would just be redundant. When either signal fires, the
   plugin marks the task as stage-two: its panel distance switches to the **secondary location**,
-  the row gains a "return the weather station" / "sail to its end point" hint, and — if
-  that task is the one you routed to — the Shortest Path route is **re-targeted automatically**,
-  no re-click needed. A signal never redirects a route pointed at some unrelated task.
+  the row gains a "return the weather station" / "sail to its end point" hint, and the Shortest
+  Path route is **re-targeted automatically**, exactly as if you'd just clicked that task's row —
+  no manual click required, and no requirement that you'd clicked it (or anything) beforehand.
+  An earlier version gated this on the task already being the clicked route target, which meant
+  it almost never fired in real play (nobody pre-clicks a duck before sailing up to it) — fixed
+  after a live bug report.
 - The rendered list is capped to the nearest 40 matching tasks. Nobody wants to scroll a 358-row
   list, and re-rendering hundreds of Swing rows every tick would be wasteful — "what's my next
   task" only ever needs the nearby few.

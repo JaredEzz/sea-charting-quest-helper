@@ -26,7 +26,7 @@ package com.seachartingquesthelper;
 
 import java.util.EnumSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
@@ -74,13 +74,22 @@ import net.runelite.client.util.Text;
  *
  * <p>Which task the signal belongs to is inferred by the caller as the nearest incomplete task
  * of the triggering type (the message only fires while the player is actually out doing that
- * task, so the nearest candidate is the active one). Re-targeting the route additionally
- * requires that this same task is the one whose route is currently active -- a stage-two signal
- * must never silently redirect a route the player pointed at some unrelated task.
+ * task, so the nearest candidate is the active one).
+ *
+ * <p><b>Re-targeting is unconditional, not gated on a prior manual selection.</b> An earlier
+ * version only re-targeted when the resolved task was already the Shortest Path route's current
+ * target -- i.e. only if the player had previously clicked that exact task's panel row. In real
+ * play a player just sails up to a duck or troll directly; they essentially never do that click
+ * first, so the gate made the feature nearly dead in practice (confirmed live: the release
+ * message fired, LlemonDuck's own Sailing plugin logged the same event, but nothing here acted
+ * on it). Per direct player confirmation, the correct behaviour is to act exactly like a manual
+ * panel click the moment the signal fires -- automatically, regardless of whatever the route was
+ * previously pointed at -- just aimed at the secondary location instead of the primary one.
  *
  * <p>Not thread-safe by design: mutated on the client thread only, mirroring the plugin's other
  * state.
  */
+@Slf4j
 class SeaChartTwoStageTracker
 {
 	/**
@@ -120,10 +129,12 @@ class SeaChartTwoStageTracker
 		final String message = Text.removeTags(event.getMessage());
 		if (message.contains(WEATHER_RETURN_PHRASE) && message.contains(WEATHER_STATION_PHRASE))
 		{
+			log.debug("Chat message matched the Weather stage-two trigger phrase: \"{}\"", message);
 			return SeaChartTaskType.WEATHER;
 		}
 		if (message.contains(CURRENT_DUCK_RELEASE_PHRASE))
 		{
+			log.debug("Chat message matched the Current duck stage-two trigger phrase: \"{}\"", message);
 			return SeaChartTaskType.CURRENT_DUCK;
 		}
 		return null;
@@ -140,41 +151,56 @@ class SeaChartTwoStageTracker
 	 * Processes a possible stage-two trigger.
 	 *
 	 * <p>If {@code event} is a stage-two signal matching {@code activeTask}'s type, the task is
-	 * marked stage-two so {@link #effectiveLocation} (and therefore the panel's distances) start
-	 * pointing at the secondary location. If that task is <em>also</em> the current route target
-	 * ({@code routeTask}), {@code retarget} is invoked with the secondary location so the route
-	 * follows automatically.
+	 * marked stage-two -- {@link #effectiveLocation} and therefore the panel's distances now
+	 * point at the secondary location -- and this returns that secondary location so the caller
+	 * can re-target the Shortest Path route with it, unconditionally, exactly as if the player
+	 * had just clicked this task's panel row. There is deliberately no gate requiring a prior
+	 * manual selection of this task (see the class Javadoc for why that gate was removed).
 	 *
 	 * @param event      the chat message just received
 	 * @param activeTask the nearest incomplete task of the trigger's type -- the caller's best
 	 *                   identification of the task the player is actually doing; may be null
-	 * @param routeTask  the task the Shortest Path route currently targets, or null if none
-	 * @param retarget   sink for the route re-target call (receives the secondary location)
-	 * @return true if the route was re-targeted
+	 * @return the secondary location to re-target the route to, or {@code null} if this message
+	 * wasn't a trigger, didn't resolve to a task, or that task has no secondary location
 	 */
-	boolean handleTrigger(ChatMessage event, SeaChartTask activeTask, SeaChartTask routeTask,
-		Consumer<WorldPoint> retarget)
+	WorldPoint handleTrigger(ChatMessage event, SeaChartTask activeTask)
 	{
 		final SeaChartTaskType type = triggerType(event);
-		if (type == null || activeTask == null || activeTask.getType() != type)
+		if (type == null)
 		{
-			return false;
+			// Not a trigger message at all -- the overwhelmingly common case for ordinary chat
+			// traffic, so this is intentionally silent rather than logged at debug on every line.
+			return null;
+		}
+
+		if (activeTask == null)
+		{
+			log.debug("{} stage-two trigger fired but no nearby incomplete {} task could be"
+				+ " resolved -- skipping", type, type);
+			return null;
+		}
+
+		if (activeTask.getType() != type)
+		{
+			log.debug("{} stage-two trigger fired but the resolved active task {} is a {} task"
+				+ " -- type mismatch, skipping", type, activeTask, activeTask.getType());
+			return null;
 		}
 
 		final WorldPoint secondary = activeTask.getSecondaryLocation();
 		if (secondary == null)
 		{
-			return false;
+			log.debug("{} stage-two trigger resolved to task {} but it has no secondary"
+				+ " location -- skipping (data gap)", type, activeTask);
+			return null;
 		}
 
+		final boolean alreadyStageTwo = stageTwo.contains(activeTask);
 		stageTwo.add(activeTask);
-
-		if (activeTask == routeTask)
-		{
-			retarget.accept(secondary);
-			return true;
-		}
-		return false;
+		log.debug("{} stage-two trigger resolved to task {} (already stage-two: {}) --"
+			+ " re-targeting route to secondary location {}, unconditionally (same as a manual"
+			+ " panel click)", type, activeTask, alreadyStageTwo, secondary);
+		return secondary;
 	}
 
 	/**

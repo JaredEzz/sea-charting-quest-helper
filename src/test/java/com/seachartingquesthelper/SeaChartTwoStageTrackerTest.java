@@ -6,9 +6,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
@@ -18,14 +15,22 @@ import org.junit.Test;
 /**
  * Covers the chat-message-triggered stage-two re-targeting rules in
  * {@link SeaChartTwoStageTracker}: the verbatim Weather success message and the verbatim Current
- * duck release message must re-target the active route to the task's <em>secondary</em>
- * location -- and nothing else may (wrong message, wrong chat type, spoofable player chat, a
- * route pointing at an unrelated task).
+ * duck release message must resolve to the task's <em>secondary</em> location -- and nothing
+ * else may (wrong message, wrong chat type, spoofable player chat, a type mismatch).
  *
  * <p>Current duck fires on <em>release</em> ("You release your current duck..."), not on
  * arrival ("...comes to a stop"): the destination is static, known task data, so it's useful to
  * route to the moment the player lets the duck go and needs to start sailing -- waiting for
  * arrival would fire only once the player is already there.
+ *
+ * <p><b>Re-targeting is unconditional</b> -- confirmed via a live bug report: an earlier version
+ * gated the re-target on the resolved task already being the Shortest Path route's current
+ * target (i.e. the player must have previously clicked that exact task's panel row). In real
+ * play a player just sails up to a duck or troll directly without ever pre-clicking its row, so
+ * that gate made the feature almost never fire. {@link SeaChartTwoStageTracker#handleTrigger}
+ * therefore takes no "current route target" parameter at all any more -- it always returns the
+ * secondary location once a task is resolved, and the caller re-targets exactly as it would for
+ * a manual click.
  */
 public class SeaChartTwoStageTrackerTest
 {
@@ -63,17 +68,12 @@ public class SeaChartTwoStageTrackerTest
 	}
 
 	@Test
-	public void weatherSuccessMessageRetargetsRouteToSecondaryNotPrimary()
+	public void weatherSuccessMessageResolvesToSecondaryNotPrimary()
 	{
-		RecordingRetarget retarget = new RecordingRetarget();
+		WorldPoint target = tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask);
 
-		boolean retargeted = tracker.handleTrigger(
-			gameMessage(WEATHER_MESSAGE), weatherTask, weatherTask, retarget);
-
-		assertTrue(retargeted);
-		assertEquals(1, retarget.targets.size());
-		assertEquals(weatherTask.getSecondaryLocation(), retarget.targets.get(0));
-		assertFalse(weatherTask.getLocation().equals(retarget.targets.get(0)));
+		assertEquals(weatherTask.getSecondaryLocation(), target);
+		assertFalse(weatherTask.getLocation().equals(target));
 		assertTrue(tracker.isStageTwo(weatherTask));
 	}
 
@@ -82,33 +82,25 @@ public class SeaChartTwoStageTrackerTest
 	{
 		// The NPC name is per-task; the match must key on the stable template text only.
 		String otherNpc = WEATHER_MESSAGE.replace("Meaty Aura Logist", "Gusty Cloud Watcher");
-		RecordingRetarget retarget = new RecordingRetarget();
 
-		assertTrue(tracker.handleTrigger(gameMessage(otherNpc), weatherTask, weatherTask, retarget));
-		assertEquals(weatherTask.getSecondaryLocation(), retarget.targets.get(0));
+		assertEquals(weatherTask.getSecondaryLocation(), tracker.handleTrigger(gameMessage(otherNpc), weatherTask));
 	}
 
 	@Test
 	public void weatherMessageWithColourTagsStillMatches()
 	{
 		String tagged = "<col=ef1020>" + WEATHER_MESSAGE + "</col>";
-		RecordingRetarget retarget = new RecordingRetarget();
 
-		assertTrue(tracker.handleTrigger(gameMessage(tagged), weatherTask, weatherTask, retarget));
-		assertEquals(weatherTask.getSecondaryLocation(), retarget.targets.get(0));
+		assertEquals(weatherTask.getSecondaryLocation(), tracker.handleTrigger(gameMessage(tagged), weatherTask));
 	}
 
 	@Test
-	public void duckReleaseMessageRetargetsRouteToDuckEndPointImmediately()
+	public void duckReleaseMessageResolvesToDuckEndPointImmediately()
 	{
-		RecordingRetarget retarget = new RecordingRetarget();
+		WorldPoint target = tracker.handleTrigger(gameMessage(DUCK_MESSAGE), duckTask);
 
-		boolean retargeted = tracker.handleTrigger(
-			gameMessage(DUCK_MESSAGE), duckTask, duckTask, retarget);
-
-		assertTrue(retargeted);
-		assertEquals(duckTask.getSecondaryLocation(), retarget.targets.get(0));
-		assertFalse(duckTask.getLocation().equals(retarget.targets.get(0)));
+		assertEquals(duckTask.getSecondaryLocation(), target);
+		assertFalse(duckTask.getLocation().equals(target));
 		assertTrue(tracker.isStageTwo(duckTask));
 	}
 
@@ -117,40 +109,29 @@ public class SeaChartTwoStageTrackerTest
 	{
 		// Regression guard for the original (wrong) implementation: arrival is too late to be
 		// useful for routing purposes, since by then the player is already at the destination.
-		RecordingRetarget retarget = new RecordingRetarget();
+		String arrivalMessage = "Your current duck comes to a stop.";
 
-		assertNull(SeaChartTwoStageTracker.triggerType(gameMessage("Your current duck comes to a stop.")));
-		assertFalse(tracker.handleTrigger(
-			gameMessage("Your current duck comes to a stop."), duckTask, duckTask, retarget));
-		assertTrue(retarget.targets.isEmpty());
+		assertNull(SeaChartTwoStageTracker.triggerType(gameMessage(arrivalMessage)));
+		assertNull(tracker.handleTrigger(gameMessage(arrivalMessage), duckTask));
 		assertFalse(tracker.isStageTwo(duckTask));
 	}
 
 	@Test
-	public void routePointedAtUnrelatedTaskIsNeverSilentlyRedirected()
+	public void releaseMessageResolvesUnconditionallyEvenWithoutAnyPriorPanelClick()
 	{
-		// The player routed to some other task; the weather signal must still flip the weather
-		// task's own effective location (panel consistency) but must NOT touch the route.
-		SeaChartTask unrelatedRouteTask = firstTaskOfType(SeaChartTaskType.SPYGLASS);
-		RecordingRetarget retarget = new RecordingRetarget();
+		// The real-world bug: the player never clicked this duck task's panel row before sailing
+		// up and releasing the duck in-game -- there was never a "current route target" at all.
+		// handleTrigger no longer needs or accepts one; the resolved task alone is enough.
+		WorldPoint target = tracker.handleTrigger(gameMessage(DUCK_MESSAGE), duckTask);
 
-		boolean retargeted = tracker.handleTrigger(
-			gameMessage(WEATHER_MESSAGE), weatherTask, unrelatedRouteTask, retarget);
-
-		assertFalse(retargeted);
-		assertTrue(retarget.targets.isEmpty());
-		assertTrue(tracker.isStageTwo(weatherTask));
-		assertFalse(tracker.isStageTwo(unrelatedRouteTask));
+		assertEquals(duckTask.getSecondaryLocation(), target);
+		assertTrue(tracker.isStageTwo(duckTask));
 	}
 
 	@Test
-	public void noActiveRouteMarksStageTwoWithoutRetargeting()
+	public void noResolvedActiveTaskMeansNoRetarget()
 	{
-		RecordingRetarget retarget = new RecordingRetarget();
-
-		assertFalse(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask, null, retarget));
-		assertTrue(retarget.targets.isEmpty());
-		assertTrue(tracker.isStageTwo(weatherTask));
+		assertNull(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), null));
 	}
 
 	@Test
@@ -158,24 +139,17 @@ public class SeaChartTwoStageTrackerTest
 	{
 		ChatMessage spoofed = new ChatMessage(null, ChatMessageType.PUBLICCHAT, "SomePlayer",
 			WEATHER_MESSAGE, null, 0);
-		RecordingRetarget retarget = new RecordingRetarget();
 
 		assertNull(SeaChartTwoStageTracker.triggerType(spoofed));
-		assertFalse(tracker.handleTrigger(spoofed, weatherTask, weatherTask, retarget));
-		assertTrue(retarget.targets.isEmpty());
+		assertNull(tracker.handleTrigger(spoofed, weatherTask));
 		assertFalse(tracker.isStageTwo(weatherTask));
 	}
 
 	@Test
 	public void unrelatedGameMessagesDoNothing()
 	{
-		RecordingRetarget retarget = new RecordingRetarget();
-
-		assertFalse(tracker.handleTrigger(gameMessage("You should now return to the bank."),
-			weatherTask, weatherTask, retarget));
-		assertFalse(tracker.handleTrigger(gameMessage("Welcome to Old School RuneScape."),
-			weatherTask, weatherTask, retarget));
-		assertTrue(retarget.targets.isEmpty());
+		assertNull(tracker.handleTrigger(gameMessage("You should now return to the bank."), weatherTask));
+		assertNull(tracker.handleTrigger(gameMessage("Welcome to Old School RuneScape."), weatherTask));
 		assertFalse(tracker.isStageTwo(weatherTask));
 	}
 
@@ -184,11 +158,8 @@ public class SeaChartTwoStageTrackerTest
 	{
 		// A weather signal while the nearest candidate of that type resolution handed us a duck
 		// task (or vice versa) must be ignored -- a category mix-up should never re-target.
-		RecordingRetarget retarget = new RecordingRetarget();
-
-		assertFalse(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), duckTask, duckTask, retarget));
-		assertFalse(tracker.handleTrigger(gameMessage(DUCK_MESSAGE), weatherTask, weatherTask, retarget));
-		assertTrue(retarget.targets.isEmpty());
+		assertNull(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), duckTask));
+		assertNull(tracker.handleTrigger(gameMessage(DUCK_MESSAGE), weatherTask));
 	}
 
 	@Test
@@ -196,7 +167,7 @@ public class SeaChartTwoStageTrackerTest
 	{
 		assertEquals(weatherTask.getLocation(), tracker.effectiveLocation(weatherTask));
 
-		tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask, null, new RecordingRetarget());
+		tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask);
 		assertEquals(weatherTask.getSecondaryLocation(), tracker.effectiveLocation(weatherTask));
 
 		tracker.onTaskCompleted(weatherTask);
@@ -229,16 +200,5 @@ public class SeaChartTwoStageTrackerTest
 			}
 		}
 		throw new AssertionError("No task of type " + type);
-	}
-
-	private static final class RecordingRetarget implements Consumer<WorldPoint>
-	{
-		private final List<WorldPoint> targets = new ArrayList<>();
-
-		@Override
-		public void accept(WorldPoint target)
-		{
-			targets.add(target);
-		}
 	}
 }

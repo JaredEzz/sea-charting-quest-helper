@@ -213,6 +213,12 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	 * player releases the duck and needs to start sailing, not once they've already arrived.</li>
 	 * </ul>
 	 *
+	 * <p>Re-targeting is <b>unconditional</b> -- it fires the moment the signal resolves to a
+	 * task, exactly like a manual panel click on that task's row, regardless of whatever the
+	 * route was previously pointed at (see {@link SeaChartTwoStageTracker} for why a prior
+	 * "must already be the clicked route target" gate was removed -- it made this feature almost
+	 * never fire in real play, since players don't pre-click a task before sailing up to it).
+	 *
 	 * <p>See {@link SeaChartTwoStageTracker} for the exact matching rules and sourcing. Fires on
 	 * the client thread (event bus), so state access here is safe.
 	 */
@@ -226,12 +232,22 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		}
 
 		final SeaChartTask activeTask = nearestIncompleteTaskOfType(triggerType);
-		final boolean retargeted = twoStageTracker.handleTrigger(event, activeTask, routeTask, this::postRouteTarget);
-		if (retargeted)
+		log.debug("Stage-two {} trigger message received; resolved active task = {}, current"
+			+ " routeTask = {} (routeTask is informational only -- not required to match)",
+			triggerType, activeTask, routeTask);
+
+		final WorldPoint secondary = twoStageTracker.handleTrigger(event, activeTask);
+		if (secondary == null)
 		{
-			log.debug("Stage-two signal for {} -- route re-targeted to secondary location {}",
-				activeTask, activeTask.getSecondaryLocation());
+			log.debug("Stage-two {} trigger did not result in a re-target (see"
+				+ " SeaChartTwoStageTracker's debug line above for the reason)", triggerType);
+			return;
 		}
+
+		routeTask = activeTask;
+		postRouteTarget(secondary);
+		log.debug("Stage-two {} trigger auto re-targeted the route to task {}'s secondary"
+			+ " location {}, with no manual click required", triggerType, activeTask, secondary);
 	}
 
 	/**
@@ -245,6 +261,8 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		final WorldPoint playerLocation = BoatLocationResolver.resolveEffectivePlayerLocation(client);
 		if (playerLocation == null)
 		{
+			log.debug("Can't resolve player location this tick -- falling back to routeTask for"
+				+ " {} identification", type);
 			return routeTask != null && routeTask.getType() == type && !completed.contains(routeTask)
 				? routeTask : null;
 		}
@@ -264,6 +282,8 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 				nearestDistance = distance;
 			}
 		}
+		log.debug("Nearest incomplete {} task to player location {} is {} (distance {})",
+			type, playerLocation, nearest, nearestDistance == Integer.MAX_VALUE ? "n/a" : nearestDistance);
 		return nearest;
 	}
 
@@ -388,9 +408,10 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 
 		clientThread.invoke(() ->
 		{
-			// Remember which task the route points at, so a later stage-two chat signal for this
-			// same task can re-target the route automatically (see onChatMessage). Clicking a
-			// task already in stage two routes straight to its secondary location.
+			// Remember which task the route points at -- informational only (e.g. debug logging,
+			// and clearing on completion in onVarbitChanged); onChatMessage's stage-two re-target
+			// no longer requires this to match. Clicking a task already in stage two routes
+			// straight to its secondary location.
 			routeTask = task;
 			postRouteTarget(twoStageTracker.effectiveLocation(task));
 		});
