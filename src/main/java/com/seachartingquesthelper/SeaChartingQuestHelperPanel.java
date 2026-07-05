@@ -101,7 +101,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 		content.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		final JLabel title = new JLabel("Sea Charting Quest Helper");
+		final JLabel title = new JLabel("Braindead Sea Charting");
 		title.setForeground(Color.WHITE);
 		title.setFont(FontManager.getRunescapeBoldFont());
 		title.setBorder(new EmptyBorder(0, 0, 6, 0));

@@ -57,7 +57,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 
 @PluginDescriptor(
-	name = "Sea Charting Quest Helper",
+	name = "Braindead Sea Charting",
 	description = "Quest Helper-style side panel for Sailing chart tasks: nearest incomplete task"
 		+ " first, auto-advancing as you complete each one",
 	tags = {"sailing", "charting", "chart", "sea", "quest", "helper", "horizon", "lure"}
@@ -116,7 +116,7 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 
 		final BufferedImage icon = new SkillIconManager().getSkillImage(Skill.SAILING, false);
 		navButton = NavigationButton.builder()
-			.tooltip("Sea Charting Quest Helper")
+			.tooltip("Braindead Sea Charting")
 			.icon(icon)
 			.priority(6)
 			.panel(panel)

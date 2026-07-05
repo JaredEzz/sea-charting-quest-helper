@@ -1,4 +1,4 @@
-# Sea Charting Quest Helper
+# Braindead Sea Charting
 
 A [RuneLite](https://runelite.net) plugin for **Sailing** that does the one thing no existing
 plugin does — turns the 358-task sea-charting grind into a **Quest Helper-style side panel**:
