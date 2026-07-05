@@ -370,16 +370,21 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 				+ (smartSort ? "nearly-done seas first" : "nearest first"));
 		}
 
-		for (SeaChartTaskRow row : filtered)
+		// Display-only post-sort pass: turns the static real per-sea complete count into a
+		// projected running count based on each row's position in this exact filtered/sorted
+		// list (see SeaChartRegionProgress.projectedCompleteCounts). Never fed back into the
+		// sort itself.
+		List<Integer> projectedCompletes = SeaChartRegionProgress.projectedCompleteCounts(filtered, regionProgress);
+		for (int i = 0; i < filtered.size(); i++)
 		{
-			listSection.add(buildRow(row));
+			listSection.add(buildRow(filtered.get(i), projectedCompletes.get(i)));
 		}
 
 		revalidate();
 		repaint();
 	}
 
-	private JPanel buildRow(SeaChartTaskRow row)
+	private JPanel buildRow(SeaChartTaskRow row, int projectedRegionComplete)
 	{
 		SeaChartTask task = row.getTask();
 		boolean eligible = row.isEligible();
@@ -435,7 +440,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			SeaChartRegionProgress progress = regionProgress.get(task.getRegion());
 			if (progress != null)
 			{
-				regionText += " (" + progress.getComplete() + "/" + progress.getTotal() + ")";
+				regionText += " (" + projectedRegionComplete + "/" + progress.getTotal() + ")";
 			}
 			JLabel regionLabel = new JLabel(regionText);
 			regionLabel.setFont(FontManager.getRunescapeSmallFont());

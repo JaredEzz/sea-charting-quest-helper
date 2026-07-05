@@ -1,9 +1,12 @@
 package com.seachartingquesthelper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
@@ -87,5 +90,139 @@ public class SeaChartRegionProgressTest
 			assertEquals(region + " should be fully charted", p.getTotal(), p.getComplete());
 			assertEquals(region + " remaining", 0, p.getRemaining());
 		});
+	}
+
+	// -- projectedCompleteCounts: the display-only "(x/y)" running-count projection --
+
+	@Test
+	public void consecutiveSameSeaRowsIncrementOneByOne()
+	{
+		SeaChartRegion regionA = SeaChartTask.values()[0].getRegion();
+		List<SeaChartTask> aTasks = tasksInRegion(regionA, 3);
+
+		Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = new EnumMap<>(SeaChartRegion.class);
+		regionProgress.put(regionA, new SeaChartRegionProgress(25, 75));
+
+		List<SeaChartTaskRow> sortedRows = Arrays.asList(
+			new SeaChartTaskRow(aTasks.get(0), 10, true, false),
+			new SeaChartTaskRow(aTasks.get(1), 20, true, false),
+			new SeaChartTaskRow(aTasks.get(2), 30, true, false));
+
+		List<Integer> projected = SeaChartRegionProgress.projectedCompleteCounts(sortedRows, regionProgress);
+
+		// 1st Northern-style row shown: real current count. Each subsequent row in the same sea
+		// climbs by one, as if the earlier-listed rows of that sea get charted first.
+		assertEquals(Arrays.asList(25, 26, 27), projected);
+	}
+
+	@Test
+	public void interspersedSameSeaRowsStillIncrementCorrectly()
+	{
+		SeaChartRegion regionA = SeaChartTask.values()[0].getRegion();
+		SeaChartRegion regionB = differentRegion(regionA);
+		List<SeaChartTask> aTasks = tasksInRegion(regionA, 3);
+		List<SeaChartTask> bTasks = tasksInRegion(regionB, 2);
+
+		Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = new EnumMap<>(SeaChartRegion.class);
+		regionProgress.put(regionA, new SeaChartRegionProgress(25, 75));
+		regionProgress.put(regionB, new SeaChartRegionProgress(10, 50));
+
+		// Interleaved: A, B, A, B, A -- other seas' rows in between must not disturb each sea's
+		// own running count.
+		List<SeaChartTaskRow> sortedRows = Arrays.asList(
+			new SeaChartTaskRow(aTasks.get(0), 10, true, false),
+			new SeaChartTaskRow(bTasks.get(0), 15, true, false),
+			new SeaChartTaskRow(aTasks.get(1), 20, true, false),
+			new SeaChartTaskRow(bTasks.get(1), 25, true, false),
+			new SeaChartTaskRow(aTasks.get(2), 30, true, false));
+
+		List<Integer> projected = SeaChartRegionProgress.projectedCompleteCounts(sortedRows, regionProgress);
+
+		assertEquals(Arrays.asList(25, 10, 26, 11, 27), projected);
+	}
+
+	@Test
+	public void projectionNeverMutatesTheRegionProgressUsedForSortScoring()
+	{
+		SeaChartRegion regionA = SeaChartTask.values()[0].getRegion();
+		SeaChartRegion regionB = differentRegion(regionA);
+		List<SeaChartTask> aTasks = tasksInRegion(regionA, 3);
+
+		Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = new EnumMap<>(SeaChartRegion.class);
+		regionProgress.put(regionA, new SeaChartRegionProgress(25, 75));
+		regionProgress.put(regionB, new SeaChartRegionProgress(10, 50));
+
+		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(
+			new SeaChartTaskRow(aTasks.get(0), 500, true, false),
+			new SeaChartTaskRow(aTasks.get(1), 450, true, false),
+			new SeaChartTaskRow(aTasks.get(2), 400, true, false)));
+
+		// Real sort, driven by the real (unprojected) remaining count.
+		SeaChartTaskSorter.sort(rows, regionProgress);
+		List<SeaChartTask> orderBeforeProjection = new ArrayList<>();
+		for (SeaChartTaskRow row : rows)
+		{
+			orderBeforeProjection.add(row.getTask());
+		}
+
+		// Running the display-only projection afterwards must not perturb the region progress
+		// map (used for scoring) or the already-sorted row order.
+		SeaChartRegionProgress.projectedCompleteCounts(rows, regionProgress);
+
+		assertEquals(25, regionProgress.get(regionA).getComplete());
+		assertEquals(75, regionProgress.get(regionA).getTotal());
+		assertEquals(10, regionProgress.get(regionB).getComplete());
+		assertEquals(50, regionProgress.get(regionB).getTotal());
+
+		List<SeaChartTask> orderAfterProjection = new ArrayList<>();
+		for (SeaChartTaskRow row : rows)
+		{
+			orderAfterProjection.add(row.getTask());
+		}
+		assertEquals(orderBeforeProjection, orderAfterProjection);
+
+		// Re-sorting a fresh copy with the same (untouched) map reproduces the identical order --
+		// proof the sorter's scoring is driven only by the real map, never by any projection.
+		List<SeaChartTaskRow> freshRows = new ArrayList<>(Arrays.asList(
+			new SeaChartTaskRow(aTasks.get(2), 400, true, false),
+			new SeaChartTaskRow(aTasks.get(0), 500, true, false),
+			new SeaChartTaskRow(aTasks.get(1), 450, true, false)));
+		SeaChartTaskSorter.sort(freshRows, regionProgress);
+		List<SeaChartTask> orderAfterFreshSort = new ArrayList<>();
+		for (SeaChartTaskRow row : freshRows)
+		{
+			orderAfterFreshSort.add(row.getTask());
+		}
+		assertEquals(orderBeforeProjection, orderAfterFreshSort);
+	}
+
+	private static List<SeaChartTask> tasksInRegion(SeaChartRegion region, int count)
+	{
+		List<SeaChartTask> found = new ArrayList<>();
+		for (SeaChartTask task : SeaChartTask.values())
+		{
+			if (task.getRegion() == region)
+			{
+				found.add(task);
+				if (found.size() == count)
+				{
+					break;
+				}
+			}
+		}
+		assertTrue("not enough tasks in " + region + " for this test", found.size() == count);
+		return found;
+	}
+
+	private static SeaChartRegion differentRegion(SeaChartRegion other)
+	{
+		for (SeaChartTask task : SeaChartTask.values())
+		{
+			if (task.getRegion() != other)
+			{
+				return task.getRegion();
+			}
+		}
+		throw new AssertionError("all tasks share one region -- test setup impossible");
 	}
 }
