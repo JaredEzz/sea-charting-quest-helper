@@ -194,7 +194,17 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		{
 			return;
 		}
-		final WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+
+		final WorldPoint playerLocation = BoatLocationResolver.resolveEffectivePlayerLocation(client);
+		if (playerLocation == null)
+		{
+			// Couldn't resolve a real overworld position this tick (e.g. aboard a boat whose
+			// owning WorldEntity we failed to find) -- skip this tick rather than compute
+			// nonsense distances against a stale/local coordinate. The panel just keeps
+			// showing its last-known-good rows until this resolves.
+			log.debug("Skipping tile-distance update this tick -- no resolvable overworld player location");
+			return;
+		}
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(SeaChartTask.values().length - completed.size());
 		for (SeaChartTask task : SeaChartTask.values())
