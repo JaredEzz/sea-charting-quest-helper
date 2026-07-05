@@ -127,6 +127,12 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		barWrapper.add(overallBar, BorderLayout.CENTER);
 		barWrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, barWrapper.getPreferredSize().height));
 
+		final JLabel chartingTypeLabel = new JLabel("Charting Type:");
+		chartingTypeLabel.setFont(FontManager.getRunescapeSmallFont());
+		chartingTypeLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		chartingTypeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		chartingTypeLabel.setBorder(new EmptyBorder(0, 0, 2, 0));
+
 		// GridLayout, not FlowLayout: FlowLayout inside a BoxLayout.Y_AXIS parent miscalculates its
 		// wrapped preferred height on the first layout pass (it doesn't yet know the final width),
 		// so only the first unwrapped row gets space reserved and later rows become invisible/
@@ -158,6 +164,12 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			typeBoxes.put(type, box);
 			filterSection.add(box);
 		}
+
+		final JLabel otherLabel = new JLabel("Other:");
+		otherLabel.setFont(FontManager.getRunescapeSmallFont());
+		otherLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		otherLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		otherLabel.setBorder(new EmptyBorder(6, 0, 2, 0));
 
 		// Config-backed option toggles, persisted through the plugin's ConfigManager so they
 		// mirror the same keys shown in the plugin config panel.
@@ -212,7 +224,9 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		content.add(title);
 		content.add(statusLabel);
 		content.add(barWrapper);
+		content.add(chartingTypeLabel);
 		content.add(filterSection);
+		content.add(otherLabel);
 		content.add(hideNotReachableBox);
 		content.add(seaCompletionBox);
 		content.add(smartSortBox);
