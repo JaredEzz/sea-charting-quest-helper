@@ -3,6 +3,8 @@
 A [RuneLite](https://runelite.net) plugin for **Sailing**: a Quest Helper-style side panel for the
 358-task sea-charting grind. Nearest incomplete task first, auto-advancing as you chart.
 
+<img src="docs/panel.png" alt="Panel showing progress, filters, and the task list" width="280">
+
 ## Why
 
 Sailing's sea charting has **358 individual chart tasks** spread across every ocean, each gated by
