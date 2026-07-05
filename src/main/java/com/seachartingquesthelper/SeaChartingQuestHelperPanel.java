@@ -394,6 +394,18 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		textPanel.add(nameLabel);
 		textPanel.add(detailLabel);
 
+		if (row.isStageTwo())
+		{
+			// Stage two of a two-stage task: the distance above (and any Shortest Path route)
+			// now points at the task's secondary location, not its original spot.
+			JLabel stageLabel = new JLabel(task.getType() == SeaChartTaskType.WEATHER
+				? "Data collected — return the weather station"
+				: "Duck stopped — retrieve it at the end point");
+			stageLabel.setFont(FontManager.getRunescapeSmallFont());
+			stageLabel.setForeground(ColorScheme.PROGRESS_INPROGRESS_COLOR);
+			textPanel.add(stageLabel);
+		}
+
 		if (showSeaCompletion)
 		{
 			String regionText = task.getRegion().getLabel();

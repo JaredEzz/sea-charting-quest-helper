@@ -37,6 +37,16 @@ a running list, sorted and auto-advancing, instead of "sail around and hope."
   [Shortest Path](https://github.com/Skretzo/shortest-path) plugin (if installed and enabled) via
   its documented `PluginMessage` API, so it draws a route. No compile-time dependency on that
   plugin — if it's not installed, the message is simply never picked up.
+- **Two-stage task auto re-target (Weather / Current duck):** these two task types move partway
+  through. Weather: after finding the calm wind spot, the game prints "…You should now return to
+  &lt;NPC&gt; where she gave you the weather station." and the relevant target becomes the weather
+  troll. Current duck: the placed duck drifts to a predetermined end point, signalled by "Your
+  current duck comes to a stop." ([wiki](https://oldschool.runescape.wiki/w/Current_duck)) — and
+  you can sail straight to the end point without escorting it. When either signal fires, the
+  plugin marks the task as stage-two: its panel distance switches to the **secondary location**,
+  the row gains a "return the weather station" / "retrieve it at the end point" hint, and — if
+  that task is the one you routed to — the Shortest Path route is **re-targeted automatically**,
+  no re-click needed. A signal never redirects a route pointed at some unrelated task.
 - The rendered list is capped to the nearest 40 matching tasks. Nobody wants to scroll a 358-row
   list, and re-rendering hundreds of Swing rows every tick would be wasteful — "what's my next
   task" only ever needs the nearby few.

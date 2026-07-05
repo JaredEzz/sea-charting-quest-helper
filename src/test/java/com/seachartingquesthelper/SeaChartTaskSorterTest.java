@@ -39,8 +39,8 @@ public class SeaChartTaskSorterTest
 		SeaChartTask inBusySea = taskInDifferentRegion(lastInSea);
 
 		// The busy-sea task is even slightly CLOSER, but the last-remaining task should win.
-		SeaChartTaskRow lastRow = new SeaChartTaskRow(lastInSea, 500, true);
-		SeaChartTaskRow busyRow = new SeaChartTaskRow(inBusySea, 450, true);
+		SeaChartTaskRow lastRow = new SeaChartTaskRow(lastInSea, 500, true, false);
+		SeaChartTaskRow busyRow = new SeaChartTaskRow(inBusySea, 450, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(busyRow, lastRow));
 		SeaChartTaskSorter.sort(rows, progress(lastInSea.getRegion(), 1, inBusySea.getRegion(), 30));
@@ -54,8 +54,8 @@ public class SeaChartTaskSorterTest
 		SeaChartTask near = SeaChartTask.values()[0];
 		SeaChartTask far = taskInSameRegion(near);
 
-		SeaChartTaskRow nearRow = new SeaChartTaskRow(near, 200, true);
-		SeaChartTaskRow farRow = new SeaChartTaskRow(far, 300, true);
+		SeaChartTaskRow nearRow = new SeaChartTaskRow(near, 200, true, false);
+		SeaChartTaskRow farRow = new SeaChartTaskRow(far, 300, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(farRow, nearRow));
 		SeaChartTaskSorter.sort(rows, progress(near.getRegion(), 10, near.getRegion(), 10));
@@ -71,8 +71,8 @@ public class SeaChartTaskSorterTest
 
 		// Both seas have plenty remaining; the small difference in remaining counts (25 vs 30)
 		// must not overcome a 200-tile proximity edge -- this is where nearest-first should hold.
-		SeaChartTaskRow nearRow = new SeaChartTaskRow(near, 100, true);
-		SeaChartTaskRow farRow = new SeaChartTaskRow(far, 300, true);
+		SeaChartTaskRow nearRow = new SeaChartTaskRow(near, 100, true, false);
+		SeaChartTaskRow farRow = new SeaChartTaskRow(far, 300, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(farRow, nearRow));
 		SeaChartTaskSorter.sort(rows, progress(near.getRegion(), 30, far.getRegion(), 25));
@@ -88,8 +88,8 @@ public class SeaChartTaskSorterTest
 
 		// The last task in its sea is a 2000-tile cross-map sail; a busy-sea task is right here.
 		// The bonus is capped at ~one inter-sea leg, so the nearby task must still win.
-		SeaChartTaskRow lastRow = new SeaChartTaskRow(lastInSea, 2000, true);
-		SeaChartTaskRow busyRow = new SeaChartTaskRow(inBusySea, 100, true);
+		SeaChartTaskRow lastRow = new SeaChartTaskRow(lastInSea, 2000, true, false);
+		SeaChartTaskRow busyRow = new SeaChartTaskRow(inBusySea, 100, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(lastRow, busyRow));
 		SeaChartTaskSorter.sort(rows, progress(lastInSea.getRegion(), 1, inBusySea.getRegion(), 30));
@@ -104,8 +104,8 @@ public class SeaChartTaskSorterTest
 		SeaChartTask second = taskInSameRegion(first);
 		assertTrue(first.getTaskId() < second.getTaskId());
 
-		SeaChartTaskRow firstRow = new SeaChartTaskRow(first, 250, true);
-		SeaChartTaskRow secondRow = new SeaChartTaskRow(second, 250, true);
+		SeaChartTaskRow firstRow = new SeaChartTaskRow(first, 250, true, false);
+		SeaChartTaskRow secondRow = new SeaChartTaskRow(second, 250, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(secondRow, firstRow));
 		SeaChartTaskSorter.sort(rows, progress(first.getRegion(), 5, first.getRegion(), 5));
@@ -120,8 +120,8 @@ public class SeaChartTaskSorterTest
 		SeaChartTask a = SeaChartTask.values()[0];
 		SeaChartTask b = taskInDifferentRegion(a);
 
-		SeaChartTaskRow aRow = new SeaChartTaskRow(a, 400, true);
-		SeaChartTaskRow bRow = new SeaChartTaskRow(b, 300, true);
+		SeaChartTaskRow aRow = new SeaChartTaskRow(a, 400, true, false);
+		SeaChartTaskRow bRow = new SeaChartTaskRow(b, 300, true, false);
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(aRow, bRow));
 		SeaChartTaskSorter.sort(rows, new EnumMap<>(SeaChartRegion.class));

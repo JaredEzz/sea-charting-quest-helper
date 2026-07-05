@@ -41,6 +41,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.VarbitChanged;
@@ -97,6 +98,11 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	private final Set<SeaChartTask> completed = EnumSet.noneOf(SeaChartTask.class);
 	private boolean scanned = false;
 
+	// Two-stage (Weather / Current duck) tracking; client thread only.
+	private final SeaChartTwoStageTracker twoStageTracker = new SeaChartTwoStageTracker();
+	/** The task whose location was last sent to Shortest Path, i.e. the active route target. */
+	private SeaChartTask routeTask;
+
 	@Override
 	protected void startUp()
 	{
@@ -138,6 +144,8 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		panel = null;
 		completed.clear();
 		scanned = false;
+		twoStageTracker.reset();
+		routeTask = null;
 	}
 
 	@Subscribe
@@ -163,6 +171,7 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 				completed.add(task);
 			}
 		}
+		completed.forEach(twoStageTracker::onTaskCompleted);
 		scanned = true;
 	}
 
@@ -178,11 +187,82 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		if (task.isComplete(client))
 		{
 			completed.add(task);
+			twoStageTracker.onTaskCompleted(task);
+			if (task == routeTask)
+			{
+				routeTask = null;
+			}
 		}
 		else
 		{
 			completed.remove(task);
 		}
+	}
+
+	/**
+	 * Watches for the two-stage "stage 2 is now relevant" signals and re-targets the active
+	 * Shortest Path route to the task's secondary location when they fire:
+	 *
+	 * <ul>
+	 * <li><b>Weather</b>: the "You find a spot where the winds have dropped. ... You should now
+	 * return to &lt;NPC&gt; where she gave you the weather station." success message -- the
+	 * relevant target becomes the weather troll who issued the station.</li>
+	 * <li><b>Current duck</b>: the wiki-verified "Your current duck comes to a stop." message --
+	 * the relevant target becomes the duck's end point, where it is retrieved.</li>
+	 * </ul>
+	 *
+	 * <p>See {@link SeaChartTwoStageTracker} for the exact matching rules and sourcing. Fires on
+	 * the client thread (event bus), so state access here is safe.
+	 */
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		final SeaChartTaskType triggerType = SeaChartTwoStageTracker.triggerType(event);
+		if (triggerType == null)
+		{
+			return;
+		}
+
+		final SeaChartTask activeTask = nearestIncompleteTaskOfType(triggerType);
+		final boolean retargeted = twoStageTracker.handleTrigger(event, activeTask, routeTask, this::postRouteTarget);
+		if (retargeted)
+		{
+			log.debug("Stage-two signal for {} -- route re-targeted to secondary location {}",
+				activeTask, activeTask.getSecondaryLocation());
+		}
+	}
+
+	/**
+	 * The nearest incomplete task of the given type -- our identification of which task a
+	 * stage-two chat signal belongs to, since the signal only fires while the player is out doing
+	 * that task. Falls back to the current route target (if it matches the type) when the
+	 * player's overworld position can't be resolved this tick.
+	 */
+	private SeaChartTask nearestIncompleteTaskOfType(SeaChartTaskType type)
+	{
+		final WorldPoint playerLocation = BoatLocationResolver.resolveEffectivePlayerLocation(client);
+		if (playerLocation == null)
+		{
+			return routeTask != null && routeTask.getType() == type && !completed.contains(routeTask)
+				? routeTask : null;
+		}
+
+		SeaChartTask nearest = null;
+		int nearestDistance = Integer.MAX_VALUE;
+		for (SeaChartTask task : SeaChartTask.values())
+		{
+			if (task.getType() != type || completed.contains(task))
+			{
+				continue;
+			}
+			final int distance = playerLocation.distanceTo2D(task.getLocation());
+			if (distance < nearestDistance)
+			{
+				nearest = task;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
 	}
 
 	@Subscribe
@@ -216,9 +296,12 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 			{
 				continue;
 			}
-			int distance = playerLocation.distanceTo2D(task.getLocation());
+			// Two-stage tasks (Weather / Current duck) measure to their secondary location once
+			// their stage-two signal has fired, keeping the shown distance consistent with where
+			// the route actually points.
+			int distance = playerLocation.distanceTo2D(twoStageTracker.effectiveLocation(task));
 			boolean eligible = SeaChartRequirements.meetsRequirement(client, task);
-			rows.add(new SeaChartTaskRow(task, distance, eligible));
+			rows.add(new SeaChartTaskRow(task, distance, eligible, twoStageTracker.isStageTwo(task)));
 		}
 
 		// Per-sea completion counts feed both the panel's "(x/y)" markers and the smart sort's
@@ -303,9 +386,24 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 
 		clientThread.invoke(() ->
 		{
-			Map<String, Object> data = new HashMap<>();
-			data.put(SHORTEST_PATH_TARGET_KEY, task.getLocation());
-			eventBus.post(new PluginMessage(SHORTEST_PATH_NAMESPACE, SHORTEST_PATH_PATH_ACTION, data));
+			// Remember which task the route points at, so a later stage-two chat signal for this
+			// same task can re-target the route automatically (see onChatMessage). Clicking a
+			// task already in stage two routes straight to its secondary location.
+			routeTask = task;
+			postRouteTarget(twoStageTracker.effectiveLocation(task));
 		});
+	}
+
+	/** Posts a route target to Shortest Path. Client thread only. */
+	private void postRouteTarget(WorldPoint target)
+	{
+		if (!config.shortestPathIntegration())
+		{
+			return;
+		}
+
+		Map<String, Object> data = new HashMap<>();
+		data.put(SHORTEST_PATH_TARGET_KEY, target);
+		eventBus.post(new PluginMessage(SHORTEST_PATH_NAMESPACE, SHORTEST_PATH_PATH_ACTION, data));
 	}
 }
