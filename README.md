@@ -1,17 +1,48 @@
 # Braindead Sea Charting
 
-A [RuneLite](https://runelite.net) plugin for **Sailing** that does the one thing no existing
-plugin does — turns the 358-task sea-charting grind into a **Quest Helper-style side panel**:
-nearest incomplete task first, auto-advancing the instant you chart something.
+A [RuneLite](https://runelite.net) plugin for **Sailing** — a Quest Helper-style side panel for
+the 358-task sea-charting grind: nearest incomplete task first, auto-advancing the instant you
+chart something, with a few things no other charting tool currently does (see "How this compares
+to quest-helper" below).
 
 ## Why
 
 Sailing's sea charting has **358 individual chart tasks** spread across every ocean, each gated
 by its own Sailing level (and sometimes a quest). The existing Plugin Hub **Sailing** plugin (by
 LlemonDuck) highlights nearby chartable locations on the map/minimap once you're already standing
-next to one — but there's no way to see, from anywhere, which of the 358 you're missing, which
-one is nearest, or what's next once you finish one. That's the gap Quest Helper fills for quests:
-a running list, sorted and auto-advancing, instead of "sail around and hope."
+next to one — useful, but it doesn't tell you which of the 358 you're missing from anywhere, or
+what's genuinely fastest to do next.
+
+**In good conscience, I have to flag this up front rather than let a reviewer find it**:
+[quest-helper](https://github.com/Zoinkwiz/quest-helper) already ships a real sea-charting sidebar
+([`ChartingHelper`](https://github.com/Zoinkwiz/quest-helper/pull/2431), merged Nov 2025) — per-sea
+sections, a sorted/proximity toggle, auto-hiding finished seas, fading tasks you don't meet
+requirements for. It's live and it works. Two earlier Plugin Hub submissions covering similar
+ground ([#9556](https://github.com/runelite/plugin-hub/pull/9556),
+[#9597](https://github.com/runelite/plugin-hub/pull/9597)) were both closed on exactly this
+precedent, and I'd rather a reviewer see that I know that than discover it and wonder if I didn't
+check.
+
+### How this compares to quest-helper's ChartingHelper
+
+| | quest-helper's `ChartingHelper` | This plugin |
+|---|---|---|
+| Per-sea progress | Plain text, no exact count | Numeric **"(x/y)"** counter per sea, live |
+| Sort | Binary toggle: alphabetical *or* proximity | **Weighted blend** — proximity, but a sea's last
+  1-2 remaining tasks get a bounded priority bump so you finish it before wandering off (documented
+  reasoning in `SeaChartTaskSorter`'s Javadoc); degrades to pure proximity for seas with lots left |
+| Gear hazards | Not covered | Three filters for adamant keel/helm, eternal brazier, inoculation
+  station, sourced from the OSRS Wiki's hazard-sea pages |
+| Routing | None | Optional [Shortest Path](https://github.com/Skretzo/shortest-path) integration
+  — click a row (or let a two-stage task auto-fire it) and it draws a route |
+| Two-stage tasks (Weather / Current duck) | Not specifically handled | Auto re-targets the route
+  to the task's secondary location when the game reveals/starts it — see below |
+| Overall progress | Not shown | "x/358" + a live percentage bar |
+
+If a maintainer decides this is still too much overlap with an existing, popular plugin, that's a
+fair call — but the smart-sort weighting, gear filters, routing integration, and two-stage
+auto-retargeting aren't in `ChartingHelper` today, and are the actual reason this exists as its own
+plugin rather than a quest-helper PR.
 
 ## Features
 
