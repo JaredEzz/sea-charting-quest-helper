@@ -63,6 +63,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private static final int MAX_ROWS = 40;
 
 	private final JLabel statusLabel = new JLabel();
+	private final JLabel percentLabel = new JLabel();
 	private final ProgressBar overallBar = new ProgressBar();
 	private final JPanel filterSection = new JPanel();
 	private final JPanel gearFilterSection = new JPanel();
@@ -113,7 +114,15 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		statusLabel.setBorder(new EmptyBorder(0, 0, 6, 0));
 		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		// Overall charting progress, XP-goal style: green fill plus a "x/358 · 58.38%" label.
+		percentLabel.setFont(FontManager.getRunescapeSmallFont());
+		percentLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		percentLabel.setBorder(new EmptyBorder(0, 0, 2, 0));
+		percentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		// Overall charting progress, XP-goal style: green fill bar; percentage shown as its own
+		// text row above (percentLabel), not overlaid on the bar -- overlaying caused the "x/y"
+		// count to appear twice (once here, once in statusLabel) and both to get clipped in the
+		// narrow sidebar.
 		overallBar.setFont(FontManager.getRunescapeSmallFont());
 		overallBar.setPreferredSize(new Dimension(100, 16));
 		overallBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -223,6 +232,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		content.add(title);
 		content.add(statusLabel);
+		content.add(percentLabel);
 		content.add(barWrapper);
 		content.add(chartingTypeLabel);
 		content.add(filterSection);
@@ -315,7 +325,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		overallBar.setMaximumValue(Math.max(1, overallTotal));
 		overallBar.setValue(overallComplete);
 		double percent = overallTotal <= 0 ? 0.0 : overallComplete * 100.0 / overallTotal;
-		overallBar.setCenterLabel(String.format("%d/%d · %.2f%%", overallComplete, overallTotal, percent));
+		percentLabel.setText(String.format("%.2f%% charted", percent));
 
 		rebuildList();
 	}
@@ -352,13 +362,12 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		}
 		else if (filtered.isEmpty())
 		{
-			statusLabel.setText("No tasks match the current filters. (" + overallComplete + "/" + overallTotal + " charted)");
+			statusLabel.setText("No tasks match the current filters.");
 		}
 		else
 		{
 			statusLabel.setText(filtered.size() + " shown, "
-				+ (smartSort ? "nearly-done seas first" : "nearest first")
-				+ " (" + overallComplete + "/" + overallTotal + " charted)");
+				+ (smartSort ? "nearly-done seas first" : "nearest first"));
 		}
 
 		for (SeaChartTaskRow row : filtered)
