@@ -26,6 +26,13 @@ a running list, sorted and auto-advancing, instead of "sail around and hope."
 - **Type filter** (Oddity / Spyglass / Sealed crate / Current duck / Diving / Weather checkboxes)
   and a **"hide not-yet-reachable"** toggle (persisted in config) for tasks whose level/quest gate
   you haven't cleared.
+- **Dangerous-water gear filters:** three more toggles (persisted in config), one each for
+  "Hide needs adamant keel/helm+", "Hide needs eternal brazier", "Hide needs inoculation station".
+  Some seas' hazards (crystal-flecked/tangled-kelp waters, icy seas, fetid/disease waters) damage
+  or slow an unprepared boat unless it has the matching facility built — see "Known caveats" below
+  for why these are manual toggles rather than an automatic check. Any task with a known
+  requirement also shows a "Needs: ..." line in its row, all-the-time, regardless of the filter
+  state, so you can see it coming even with the filter off.
 - **Optional routing:** clicking a task sends its location to the
   [Shortest Path](https://github.com/Skretzo/shortest-path) plugin (if installed and enabled) via
   its documented `PluginMessage` API, so it draws a route. No compile-time dependency on that
@@ -49,6 +56,18 @@ a running list, sorted and auto-advancing, instead of "sail around and hope."
   design — Current Duck → Current Affairs, Sealed Crate → Prying Times, Diving → Recipe for
   Disaster: Pirate Pete, everything else → Pandemonium), checked against `QuestState.FINISHED`
   plus `client.getRealSkillLevel(Skill.SAILING)`.
+- **Gear requirement mapping:** `SeaChartGearRequirements` maps each task's sea to the special
+  boat facility it needs, per the OSRS Wiki's hazard pages — "Crystal-flecked waters" (Porth
+  Gwenith, Porth Neigwl → adamant keel or better), "Tangled kelp" (Rainbow Reef, Southern Expanse
+  → adamant helm or better), "Icy seas" (Weiss Melt, Everwinter Sea, Stoneheart Sea, Weissmere,
+  Winter's Edge, Shiverwake Expanse → eternal brazier), "Fetid waters" (Backwater, Breakbone
+  Strait, Mythic Sea, Sea of Souls, Zul-Egil → inoculation station). It matches by task name,
+  which is the literal sea name for every Weather/Current Duck/Spyglass/Mermaid Guide task — the
+  geographically-anchored majority. Sealed-crate/Oddity tasks are usually named after a flavour
+  item instead (e.g. "Weiss Meltwater"), and the upstream table has no field linking them back to
+  a sea, so a handful sitting in an otherwise-hazardous sea may not be individually flagged; treat
+  an unflagged task as "not confirmed hazardous", not "confirmed safe" — the same caveat
+  `SeaChartRegion` documents for ocean boundaries.
 
 ### Credit
 
@@ -60,12 +79,27 @@ itself was real work, so it's credited in the LICENSE and in `SeaChartTask.java`
 source code from that project is reused; this plugin does not depend on it at compile time or
 runtime, and only vendors a fresh copy of the data table as its own enum.
 
-### Known caveat
+### Known caveats
 
-The panel checks Sailing level and quest state, but **can't verify you physically have the boat
-upgrades** (keel/helm/brazier) needed to actually reach far oceans — the same limitation
-Quest Helper has with F2P/members gates it can't detect. Treat "can I get there" as your own
-problem once a task shows as level/quest-eligible.
+- The panel checks Sailing level and quest state, but **can't verify you physically have the boat
+  upgrades** (keel/helm/brazier/inoculation station) needed to actually survive far oceans —
+  RuneLite's client API has no "does my boat have an eternal brazier" getter, the same limitation
+  Quest Helper has with F2P/members gates it can't detect. That's why the three gear filters
+  (above) are manual toggles the player flips themselves once they know they're missing a
+  facility, rather than an automatic eligibility check like "hide not-yet-reachable" — the plugin
+  literally cannot know your boat's loadout.
+- The gear-requirement mapping is name-based and not exhaustive for Sealed-crate/Oddity tasks —
+  see `SeaChartGearRequirements`'s Javadoc.
+- **Raft/skiff vs. big-boat access is not implemented — it isn't really a per-task mechanic.**
+  Researched via the OSRS Wiki: Sailing does have three boat hull sizes (raft/skiff/sloop) with a
+  real maneuverability difference (a sloop can't fit through some narrow channels a raft/skiff
+  can), and this matters for general Sailing content (e.g. Barracuda Trial couriers squeezing
+  through rapids). But scanning the *entire* 358-row sea-charting task table for any raft/skiff
+  mention turned up exactly **one** task with any note at all, and that note reads "a raft is
+  recommended but not required to reach this location." That's not a real per-task hard
+  requirement worth building a filter/indicator around, so this plugin doesn't invent one — hiding
+  or flagging tasks by a distinction that's essentially never load-bearing here would just be
+  noise.
 
 ## Building
 
@@ -85,6 +119,9 @@ Requires JDK 11 (RuneLite's build target).
   as locked with "Requires 72 Sailing" until your Sailing level actually clears it.
 - Toggle the type filter checkboxes and the "hide not-yet-reachable" box and confirm the list
   updates accordingly.
+- Cross-check a gear-hazard task — e.g. `TASK_219` (Weiss Melt, icy sea) — shows a "Needs: Eternal
+  brazier" line, and toggling "Hide needs eternal brazier" removes it (and any other icy-sea task)
+  from the list.
 - If you run [Shortest Path](https://github.com/Skretzo/shortest-path), click a task row and
   confirm it draws a route to that location.
 

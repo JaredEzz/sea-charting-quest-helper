@@ -2,6 +2,7 @@ package com.seachartingquesthelper;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -420,6 +421,16 @@ public enum SeaChartTask
 	public SeaChartRegion getRegion()
 	{
 		return SeaChartRegion.forTaskId(taskId);
+	}
+
+	/**
+	 * Special boat facility/facilities this task's sea is confirmed to require (adamant keel/helm,
+	 * eternal brazier, inoculation station), or an empty set if none are confirmed -- see
+	 * {@link SeaChartGearRequirements} for sourcing and the best-effort caveat.
+	 */
+	public Set<SeaChartGearRequirement> getGearRequirements()
+	{
+		return SeaChartGearRequirements.forTaskName(taskName);
 	}
 
 	public static SeaChartTask byVarbit(int varbitId)

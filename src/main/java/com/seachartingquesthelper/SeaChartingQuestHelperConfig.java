@@ -39,6 +39,9 @@ public interface SeaChartingQuestHelperConfig extends Config
 	String KEY_SHOW_SEA_COMPLETION = "showSeaCompletion";
 	String KEY_SMART_SORT = "smartSort";
 	String KEY_SHOW_NEAREST_PORT = "showNearestPort";
+	String KEY_HIDE_NEEDS_ADAMANT_KEEL_OR_HELM = "hideNeedsAdamantKeelOrHelm";
+	String KEY_HIDE_NEEDS_ETERNAL_BRAZIER = "hideNeedsEternalBrazier";
+	String KEY_HIDE_NEEDS_INOCULATION_STATION = "hideNeedsInoculationStation";
 
 	@ConfigItem(
 		keyName = "hideNotYetReachable",
@@ -93,5 +96,38 @@ public interface SeaChartingQuestHelperConfig extends Config
 	default boolean showNearestPort()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_HIDE_NEEDS_ADAMANT_KEEL_OR_HELM,
+		name = "Hide needs adamant keel/helm+",
+		description = "Hide tasks in crystal-flecked or tangled-kelp seas (e.g. Porth Gwenith, Rainbow Reef) if you don't have an adamant-tier keel/helm yet",
+		position = 5
+	)
+	default boolean hideNeedsAdamantKeelOrHelm()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = KEY_HIDE_NEEDS_ETERNAL_BRAZIER,
+		name = "Hide needs eternal brazier",
+		description = "Hide tasks in Northern icy seas (e.g. Weiss Melt, Everwinter Sea) if you don't have an eternal brazier yet",
+		position = 6
+	)
+	default boolean hideNeedsEternalBrazier()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = KEY_HIDE_NEEDS_INOCULATION_STATION,
+		name = "Hide needs inoculation station",
+		description = "Hide tasks in Shrouded disease seas (e.g. Backwater, Mythic Sea) if you don't have an inoculation station yet",
+		position = 7
+	)
+	default boolean hideNeedsInoculationStation()
+	{
+		return false;
 	}
 }

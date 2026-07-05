@@ -65,6 +65,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private final JLabel statusLabel = new JLabel();
 	private final ProgressBar overallBar = new ProgressBar();
 	private final JPanel filterSection = new JPanel();
+	private final JPanel gearFilterSection = new JPanel();
 	private final JPanel listSection = new JPanel();
 	private final JCheckBox hideNotReachableBox;
 	private final JCheckBox seaCompletionBox;
@@ -72,6 +73,8 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private final JCheckBox nearestPortBox;
 	private final Map<SeaChartTaskType, JCheckBox> typeBoxes = new EnumMap<>(SeaChartTaskType.class);
 	private final Set<SeaChartTaskType> visibleTypes = EnumSet.allOf(SeaChartTaskType.class);
+	private final Map<SeaChartGearRequirement, JCheckBox> gearHideBoxes = new EnumMap<>(SeaChartGearRequirement.class);
+	private final Set<SeaChartGearRequirement> hiddenGearRequirements = EnumSet.noneOf(SeaChartGearRequirement.class);
 
 	private Map<SeaChartTaskType, BufferedImage> icons = Collections.emptyMap();
 	private List<SeaChartTaskRow> rows = Collections.emptyList();
@@ -86,6 +89,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	/** (config key, new value) -- the plugin persists panel toggles back into plugin config. */
 	private BiConsumer<String, Boolean> onToggle = (key, value) -> { };
 	private Consumer<SeaChartTask> onTaskClicked = task -> { };
+	private BiConsumer<SeaChartGearRequirement, Boolean> onGearHideToggle = (requirement, hide) -> { };
 
 	SeaChartingQuestHelperPanel()
 	{
@@ -168,6 +172,39 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			SeaChartingQuestHelperConfig.KEY_SHOW_NEAREST_PORT, v -> showNearestPort = v);
 		nearestPortBox.setBorder(new EmptyBorder(0, 0, 6, 0));
 
+		final JLabel gearFilterLabel = new JLabel("Hide tasks needing gear I don't have yet:");
+		gearFilterLabel.setFont(FontManager.getRunescapeSmallFont());
+		gearFilterLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		gearFilterLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		gearFilterSection.setLayout(new GridLayout(0, 1, 0, 2));
+		gearFilterSection.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		gearFilterSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+		gearFilterSection.setBorder(new EmptyBorder(2, 0, 6, 0));
+		for (SeaChartGearRequirement requirement : SeaChartGearRequirement.values())
+		{
+			JCheckBox box = new JCheckBox(requirement.getLabel(), false);
+			box.setFont(FontManager.getRunescapeSmallFont());
+			box.setForeground(Color.WHITE);
+			box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			box.setFocusPainted(false);
+			box.addActionListener(e ->
+			{
+				if (box.isSelected())
+				{
+					hiddenGearRequirements.add(requirement);
+				}
+				else
+				{
+					hiddenGearRequirements.remove(requirement);
+				}
+				onGearHideToggle.accept(requirement, box.isSelected());
+				rebuildList();
+			});
+			gearHideBoxes.put(requirement, box);
+			gearFilterSection.add(box);
+		}
+
 		listSection.setLayout(new GridLayout(0, 1, 0, 4));
 		listSection.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		listSection.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -180,6 +217,8 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		content.add(seaCompletionBox);
 		content.add(smartSortBox);
 		content.add(nearestPortBox);
+		content.add(gearFilterLabel);
+		content.add(gearFilterSection);
 		content.add(listSection);
 
 		add(content, BorderLayout.NORTH);
@@ -209,6 +248,11 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		this.onTaskClicked = onTaskClicked;
 	}
 
+	void setGearHideCallback(BiConsumer<SeaChartGearRequirement, Boolean> onGearHideToggle)
+	{
+		this.onGearHideToggle = onGearHideToggle;
+	}
+
 	/** Seeds all option toggles from persisted config, without firing the persist callback. */
 	void initOptions(boolean hideNotReachable, boolean showSeaCompletion, boolean smartSort, boolean showNearestPort)
 	{
@@ -220,6 +264,18 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		seaCompletionBox.setSelected(showSeaCompletion);
 		smartSortBox.setSelected(smartSort);
 		nearestPortBox.setSelected(showNearestPort);
+		rebuildList();
+	}
+
+	/** Sets the gear-filter checkboxes from persisted config, without firing the callback. */
+	void initGearFilters(Set<SeaChartGearRequirement> initiallyHidden)
+	{
+		hiddenGearRequirements.clear();
+		hiddenGearRequirements.addAll(initiallyHidden);
+		for (Map.Entry<SeaChartGearRequirement, JCheckBox> entry : gearHideBoxes.entrySet())
+		{
+			entry.getValue().setSelected(hiddenGearRequirements.contains(entry.getKey()));
+		}
 		rebuildList();
 	}
 
@@ -262,6 +318,10 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 				continue;
 			}
 			if (hideNotReachable && !row.isEligible())
+			{
+				continue;
+			}
+			if (!hiddenGearRequirements.isEmpty() && !Collections.disjoint(hiddenGearRequirements, row.getTask().getGearRequirements()))
 			{
 				continue;
 			}
@@ -354,6 +414,26 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			portLabel.setFont(FontManager.getRunescapeSmallFont());
 			portLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 			textPanel.add(portLabel);
+		}
+
+		Set<SeaChartGearRequirement> gearRequirements = task.getGearRequirements();
+		if (!gearRequirements.isEmpty())
+		{
+			StringBuilder gearText = new StringBuilder("Needs: ");
+			boolean first = true;
+			for (SeaChartGearRequirement requirement : gearRequirements)
+			{
+				if (!first)
+				{
+					gearText.append(", ");
+				}
+				gearText.append(requirement.getLabel());
+				first = false;
+			}
+			JLabel gearLabel = new JLabel(gearText.toString());
+			gearLabel.setFont(FontManager.getRunescapeSmallFont());
+			gearLabel.setForeground(ColorScheme.PROGRESS_INPROGRESS_COLOR);
+			textPanel.add(gearLabel);
 		}
 
 		panel.add(textPanel, BorderLayout.CENTER);

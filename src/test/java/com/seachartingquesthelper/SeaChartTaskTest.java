@@ -1,6 +1,7 @@
 package com.seachartingquesthelper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import java.util.EnumMap;
@@ -164,5 +165,90 @@ public class SeaChartTaskTest
 		assertEquals(SeaChartRegion.ARDENT, SeaChartTask.TASK_104.getRegion()); // Gu'tanoth Bay
 		assertEquals(SeaChartRegion.SHROUDED, SeaChartTask.TASK_105.getRegion()); // Breakbone Strait
 		assertEquals(SeaChartRegion.SUNSET, SeaChartTask.TASK_343.getRegion()); // Sunset Bay
+	}
+
+	@Test
+	public void mostTasksHaveNoGearRequirement()
+	{
+		// The vast majority of tasks are in ordinary water -- only the confirmed hazard seas
+		// (crystal-flecked/tangled-kelp/icy/fetid) should ever report a requirement.
+		for (SeaChartTask task : SeaChartTask.values())
+		{
+			assertNotNull(task + " gear requirement set is null, should be empty", task.getGearRequirements());
+		}
+	}
+
+	@Test
+	public void porthGwenithAndPorthNeigwlNeedAdamantKeelOrHelm()
+	{
+		// Crystal-flecked waters, per the OSRS Wiki's "Crystal-flecked waters" page.
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_170.getGearRequirements())); // Porth Gwenith, mermaid guide
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_173.getGearRequirements())); // Porth Gwenith, current duck
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_146.getGearRequirements())); // Porth Neigwl, weather
+	}
+
+	@Test
+	public void rainbowReefAndSouthernExpanseNeedAdamantKeelOrHelm()
+	{
+		// Tangled kelp, per the OSRS Wiki's "Tangled kelp" page (Isle of Serpents/Sunbleak Island,
+		// both level-72-gated -- matching these tasks' level 72 requirement).
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_52.getGearRequirements())); // Rainbow Reef, mermaid guide
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_284.getGearRequirements())); // Southern Expanse, weather
+	}
+
+	@Test
+	public void icySeasNeedEternalBrazier()
+	{
+		// Per the OSRS Wiki's "Icy seas" page.
+		SeaChartTask[] icySeaTasks = {
+			SeaChartTask.TASK_219, // Weiss Melt
+			SeaChartTask.TASK_215, // Everwinter Sea
+			SeaChartTask.TASK_218, // Stoneheart Sea
+			SeaChartTask.TASK_217, // Weissmere
+			SeaChartTask.TASK_169, // Winters Edge
+			SeaChartTask.TASK_226, // Shiverwake Expanse
+		};
+		for (SeaChartTask task : icySeaTasks)
+		{
+			assertEquals(task + " should need an eternal brazier", SeaChartGearRequirement.ETERNAL_BRAZIER,
+				only(task.getGearRequirements()));
+		}
+	}
+
+	@Test
+	public void diseaseSeasNeedInoculationStation()
+	{
+		// Fetid waters, per the OSRS Wiki's "Fetid waters" page.
+		SeaChartTask[] fetidSeaTasks = {
+			SeaChartTask.TASK_128, // Backwater
+			SeaChartTask.TASK_105, // Breakbone Strait
+			SeaChartTask.TASK_127, // Mythic Sea
+			SeaChartTask.TASK_311, // Sea Of Souls
+			SeaChartTask.TASK_107, // Zul Egil
+		};
+		for (SeaChartTask task : fetidSeaTasks)
+		{
+			assertEquals(task + " should need an inoculation station", SeaChartGearRequirement.INOCULATION_STATION,
+				only(task.getGearRequirements()));
+		}
+	}
+
+	@Test
+	public void ordinarySeaHasNoGearRequirement()
+	{
+		// Spot-check an everyday task far from any confirmed hazard sea.
+		assertTrue(SeaChartTask.TASK_0.getGearRequirements().isEmpty()); // Board Port Sarim
+		assertFalse(SeaChartTask.TASK_0.getGearRequirements().contains(SeaChartGearRequirement.ETERNAL_BRAZIER));
+	}
+
+	private static SeaChartGearRequirement only(Set<SeaChartGearRequirement> requirements)
+	{
+		assertEquals("expected exactly one gear requirement, got " + requirements, 1, requirements.size());
+		return requirements.iterator().next();
 	}
 }

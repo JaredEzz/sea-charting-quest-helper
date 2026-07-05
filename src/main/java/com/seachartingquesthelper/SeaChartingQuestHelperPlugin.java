@@ -102,8 +102,10 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	{
 		panel = new SeaChartingQuestHelperPanel();
 		panel.setCallbacks(this::onPanelToggle, this::onTaskClicked);
+		panel.setGearHideCallback(this::onGearHideToggle);
 		panel.initOptions(config.hideNotYetReachable(), config.showSeaCompletion(),
 			config.smartSort(), config.showNearestPort());
+		panel.initGearFilters(initiallyHiddenGearRequirements());
 
 		final Map<SeaChartTaskType, BufferedImage> icons = new EnumMap<>(SeaChartTaskType.class);
 		for (SeaChartTaskType type : SeaChartTaskType.values())
@@ -247,6 +249,44 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	private void onPanelToggle(String configKey, boolean value)
 	{
 		configManager.setConfiguration(SeaChartingQuestHelperConfig.GROUP, configKey, value);
+	}
+
+	private Set<SeaChartGearRequirement> initiallyHiddenGearRequirements()
+	{
+		Set<SeaChartGearRequirement> hidden = EnumSet.noneOf(SeaChartGearRequirement.class);
+		if (config.hideNeedsAdamantKeelOrHelm())
+		{
+			hidden.add(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM);
+		}
+		if (config.hideNeedsEternalBrazier())
+		{
+			hidden.add(SeaChartGearRequirement.ETERNAL_BRAZIER);
+		}
+		if (config.hideNeedsInoculationStation())
+		{
+			hidden.add(SeaChartGearRequirement.INOCULATION_STATION);
+		}
+		return hidden;
+	}
+
+	private void onGearHideToggle(SeaChartGearRequirement requirement, boolean hide)
+	{
+		String keyName;
+		switch (requirement)
+		{
+			case ADAMANT_KEEL_OR_HELM:
+				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_ADAMANT_KEEL_OR_HELM;
+				break;
+			case ETERNAL_BRAZIER:
+				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_ETERNAL_BRAZIER;
+				break;
+			case INOCULATION_STATION:
+				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_INOCULATION_STATION;
+				break;
+			default:
+				throw new IllegalArgumentException("Unhandled gear requirement: " + requirement);
+		}
+		configManager.setConfiguration(SeaChartingQuestHelperConfig.GROUP, keyName, hide);
 	}
 
 	/**
