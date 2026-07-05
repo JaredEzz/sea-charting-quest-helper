@@ -63,7 +63,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private static final int MAX_ROWS = 40;
 
 	private final JLabel statusLabel = new JLabel();
-	private final JLabel percentLabel = new JLabel();
+	private final JLabel countLabel = new JLabel();
 	private final ProgressBar overallBar = new ProgressBar();
 	private final JPanel filterSection = new JPanel();
 	private final JPanel gearFilterSection = new JPanel();
@@ -114,15 +114,15 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		statusLabel.setBorder(new EmptyBorder(0, 0, 6, 0));
 		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		percentLabel.setFont(FontManager.getRunescapeSmallFont());
-		percentLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		percentLabel.setBorder(new EmptyBorder(0, 0, 2, 0));
-		percentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		countLabel.setFont(FontManager.getRunescapeSmallFont());
+		countLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		countLabel.setBorder(new EmptyBorder(0, 0, 2, 0));
+		countLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		// Overall charting progress, XP-goal style: green fill bar; percentage shown as its own
-		// text row above (percentLabel), not overlaid on the bar -- overlaying caused the "x/y"
-		// count to appear twice (once here, once in statusLabel) and both to get clipped in the
-		// narrow sidebar.
+		// Overall charting progress, XP-goal style: "x/358 charted" as its own text row
+		// (countLabel, plenty of width so it never clips), percentage as the bar's own center
+		// label (short enough on its own -- "58.38%" -- not to clip like the old combined
+		// "x/y · 58.38%" string did).
 		overallBar.setFont(FontManager.getRunescapeSmallFont());
 		overallBar.setPreferredSize(new Dimension(100, 16));
 		overallBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -232,7 +232,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		content.add(title);
 		content.add(statusLabel);
-		content.add(percentLabel);
+		content.add(countLabel);
 		content.add(barWrapper);
 		content.add(chartingTypeLabel);
 		content.add(filterSection);
@@ -325,7 +325,8 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		overallBar.setMaximumValue(Math.max(1, overallTotal));
 		overallBar.setValue(overallComplete);
 		double percent = overallTotal <= 0 ? 0.0 : overallComplete * 100.0 / overallTotal;
-		percentLabel.setText(String.format("%.2f%% charted", percent));
+		countLabel.setText(overallComplete + "/" + overallTotal + " charted");
+		overallBar.setCenterLabel(String.format("%.2f%%", percent));
 
 		rebuildList();
 	}
