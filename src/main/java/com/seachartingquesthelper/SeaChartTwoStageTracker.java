@@ -55,14 +55,22 @@ import net.runelite.client.util.Text;
  *
  * <p><b>Current duck tasks:</b> the player places the current duck at the rippled start point
  * (the primary location) and it drifts along the current to a predetermined end point (the
- * secondary location). Per the OSRS Wiki (<a
- * href="https://oldschool.runescape.wiki/w/Current_duck">Current duck</a>, <a
- * href="https://oldschool.runescape.wiki/w/Sea_charting/Current">Sea charting/Current</a>): the
- * duck "follows currents until reaching a predetermined end point indicated with message
- * <i>Your current duck comes to a stop.</i>", the player retrieves it there to complete the
- * task, and escorting is optional -- "you do not need to escort the duck, you can go to the end
- * location directly." So the stop message is the wiki-verified signal that the end location is
- * now the place to be, and we re-target on it.
+ * secondary location, already known at compile time -- it's vendored task data, not something
+ * the game reveals mid-task the way Weather's return-to-NPC destination is). Per the OSRS Wiki
+ * (<a href="https://oldschool.runescape.wiki/w/Current_duck">Current duck</a>, <a
+ * href="https://oldschool.runescape.wiki/w/Sea_charting/Current">Sea charting/Current</a>),
+ * escorting the duck is optional -- "you do not need to escort the duck, you can go to the end
+ * location directly" -- so the moment the destination is worth routing to is release, not
+ * arrival: re-targeting on arrival ("Your current duck comes to a stop") would only fire once the
+ * player is already there, too late to be useful for routing. The release message, confirmed
+ * verbatim from a real client log (with LlemonDuck's Sailing plugin logging {@code
+ * CurrentDuckTaskTracker - beginning duck task} at the same moment, confirming this is the
+ * task-start event):
+ *
+ * <pre>You release your current duck and he begins tracking the currents...</pre>
+ *
+ * <p>is therefore the trigger: it fires right as the player is standing at the primary location
+ * about to sail, and the known secondary location is exactly where they need to head next.
  *
  * <p>Which task the signal belongs to is inferred by the caller as the nearest incomplete task
  * of the triggering type (the message only fires while the player is actually out doing that
@@ -84,8 +92,12 @@ class SeaChartTwoStageTracker
 	/** Second weather key, guarding against unrelated "return to" texts. */
 	static final String WEATHER_STATION_PHRASE = "weather station";
 
-	/** Wiki-verified message printed when the placed current duck reaches its end point. */
-	static final String CURRENT_DUCK_STOP_PHRASE = "Your current duck comes to a stop";
+	/**
+	 * Message printed the moment the current duck is released and begins tracking the currents
+	 * -- task start, not arrival. Confirmed verbatim from a real client log. See the class
+	 * Javadoc for why release, not arrival, is the correct re-target moment.
+	 */
+	static final String CURRENT_DUCK_RELEASE_PHRASE = "You release your current duck";
 
 	/**
 	 * Incomplete tasks whose stage-two signal has fired: their live target is now the secondary
@@ -110,7 +122,7 @@ class SeaChartTwoStageTracker
 		{
 			return SeaChartTaskType.WEATHER;
 		}
-		if (message.contains(CURRENT_DUCK_STOP_PHRASE))
+		if (message.contains(CURRENT_DUCK_RELEASE_PHRASE))
 		{
 			return SeaChartTaskType.CURRENT_DUCK;
 		}

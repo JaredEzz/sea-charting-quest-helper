@@ -17,10 +17,15 @@ import org.junit.Test;
 
 /**
  * Covers the chat-message-triggered stage-two re-targeting rules in
- * {@link SeaChartTwoStageTracker}: the verbatim Weather success message and the wiki-verified
- * Current duck stop message must re-target the active route to the task's <em>secondary</em>
+ * {@link SeaChartTwoStageTracker}: the verbatim Weather success message and the verbatim Current
+ * duck release message must re-target the active route to the task's <em>secondary</em>
  * location -- and nothing else may (wrong message, wrong chat type, spoofable player chat, a
  * route pointing at an unrelated task).
+ *
+ * <p>Current duck fires on <em>release</em> ("You release your current duck..."), not on
+ * arrival ("...comes to a stop"): the destination is static, known task data, so it's useful to
+ * route to the moment the player lets the duck go and needs to start sailing -- waiting for
+ * arrival would fire only once the player is already there.
  */
 public class SeaChartTwoStageTrackerTest
 {
@@ -33,8 +38,12 @@ public class SeaChartTwoStageTrackerTest
 			+ " charts with interesting data. You should now return to Meaty Aura Logist where"
 			+ " she gave you the weather station.";
 
-	/** Wiki-verified Current duck arrival message. */
-	private static final String DUCK_MESSAGE = "Your current duck comes to a stop.";
+	/**
+	 * Verbatim Current duck release message, captured from a real play session's client log
+	 * (alongside LlemonDuck's Sailing plugin logging "beginning duck task" at the same moment,
+	 * confirming this is the task-start event, not the arrival/stop event).
+	 */
+	private static final String DUCK_MESSAGE = "You release your current duck and he begins tracking the currents...";
 
 	private SeaChartTask weatherTask;
 	private SeaChartTask duckTask;
@@ -90,7 +99,7 @@ public class SeaChartTwoStageTrackerTest
 	}
 
 	@Test
-	public void duckStopMessageRetargetsRouteToDuckEndPoint()
+	public void duckReleaseMessageRetargetsRouteToDuckEndPointImmediately()
 	{
 		RecordingRetarget retarget = new RecordingRetarget();
 
@@ -101,6 +110,20 @@ public class SeaChartTwoStageTrackerTest
 		assertEquals(duckTask.getSecondaryLocation(), retarget.targets.get(0));
 		assertFalse(duckTask.getLocation().equals(retarget.targets.get(0)));
 		assertTrue(tracker.isStageTwo(duckTask));
+	}
+
+	@Test
+	public void duckArrivalMessageIsNotTheTrigger()
+	{
+		// Regression guard for the original (wrong) implementation: arrival is too late to be
+		// useful for routing purposes, since by then the player is already at the destination.
+		RecordingRetarget retarget = new RecordingRetarget();
+
+		assertNull(SeaChartTwoStageTracker.triggerType(gameMessage("Your current duck comes to a stop.")));
+		assertFalse(tracker.handleTrigger(
+			gameMessage("Your current duck comes to a stop."), duckTask, duckTask, retarget));
+		assertTrue(retarget.targets.isEmpty());
+		assertFalse(tracker.isStageTwo(duckTask));
 	}
 
 	@Test

@@ -40,11 +40,14 @@ a running list, sorted and auto-advancing, instead of "sail around and hope."
 - **Two-stage task auto re-target (Weather / Current duck):** these two task types move partway
   through. Weather: after finding the calm wind spot, the game prints "…You should now return to
   &lt;NPC&gt; where she gave you the weather station." and the relevant target becomes the weather
-  troll. Current duck: the placed duck drifts to a predetermined end point, signalled by "Your
-  current duck comes to a stop." ([wiki](https://oldschool.runescape.wiki/w/Current_duck)) — and
-  you can sail straight to the end point without escorting it. When either signal fires, the
+  troll — this is the earliest point the destination NPC is even known, since the game only
+  reveals it there. Current duck: the destination is static, known task data from the moment the
+  task starts, so the plugin re-targets right away on "You release your current duck and he
+  begins tracking the currents…" rather than waiting for arrival — you can sail straight to the
+  end point without escorting the duck ([wiki](https://oldschool.runescape.wiki/w/Current_duck)),
+  so waiting for it to actually stop there would just be redundant. When either signal fires, the
   plugin marks the task as stage-two: its panel distance switches to the **secondary location**,
-  the row gains a "return the weather station" / "retrieve it at the end point" hint, and — if
+  the row gains a "return the weather station" / "sail to its end point" hint, and — if
   that task is the one you routed to — the Shortest Path route is **re-targeted automatically**,
   no re-click needed. A signal never redirects a route pointed at some unrelated task.
 - The rendered list is capped to the nearest 40 matching tasks. Nobody wants to scroll a 358-row

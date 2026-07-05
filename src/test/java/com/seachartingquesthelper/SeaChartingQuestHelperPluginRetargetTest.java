@@ -26,10 +26,15 @@ import org.mockito.ArgumentCaptor;
 
 /**
  * End-to-end coverage of the automatic stage-two route re-target through the real plugin event
- * handlers: click a Weather task (route -> primary location), receive the verbatim in-game
- * success message as a {@link ChatMessage}, and verify the plugin posts a second Shortest Path
+ * handlers: click a task (route -> primary location), receive the verbatim in-game trigger
+ * message as a {@link ChatMessage}, and verify the plugin posts a second Shortest Path
  * {@link PluginMessage} carrying the task's <em>secondary</em> location -- with no manual
  * re-click. Collaborators are mocked; the decision logic under test is real.
+ *
+ * <p>Current duck's trigger is the release message ("You release your current duck..."), fired
+ * at task start -- not the arrival message ("...comes to a stop") -- since the destination is
+ * static, known task data and useful to route to immediately, before the player has already
+ * arrived.
  */
 public class SeaChartingQuestHelperPluginRetargetTest
 {
@@ -38,7 +43,8 @@ public class SeaChartingQuestHelperPluginRetargetTest
 			+ " charts with interesting data. You should now return to Meaty Aura Logist where"
 			+ " she gave you the weather station.";
 
-	private static final String DUCK_MESSAGE = "Your current duck comes to a stop.";
+	private static final String DUCK_MESSAGE =
+		"You release your current duck and he begins tracking the currents...";
 
 	private SeaChartingQuestHelperPlugin plugin;
 	private Client client;
@@ -93,7 +99,7 @@ public class SeaChartingQuestHelperPluginRetargetTest
 	}
 
 	@Test
-	public void duckStopMessageAutoRetargetsClickedRouteToEndPoint() throws Exception
+	public void duckReleaseMessageAutoRetargetsClickedRouteToEndPoint() throws Exception
 	{
 		SeaChartTask duck = firstTaskOfType(SeaChartTaskType.CURRENT_DUCK);
 		standNear(duck.getLocation());

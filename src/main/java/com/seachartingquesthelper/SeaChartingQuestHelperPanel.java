@@ -428,7 +428,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			// now points at the task's secondary location, not its original spot.
 			JLabel stageLabel = new JLabel(task.getType() == SeaChartTaskType.WEATHER
 				? "Data collected — return the weather station"
-				: "Duck stopped — retrieve it at the end point");
+				: "Duck released — sail to its end point");
 			stageLabel.setFont(FontManager.getRunescapeSmallFont());
 			stageLabel.setForeground(ColorScheme.PROGRESS_INPROGRESS_COLOR);
 			textPanel.add(stageLabel);

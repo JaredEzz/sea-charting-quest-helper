@@ -207,8 +207,10 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	 * <li><b>Weather</b>: the "You find a spot where the winds have dropped. ... You should now
 	 * return to &lt;NPC&gt; where she gave you the weather station." success message -- the
 	 * relevant target becomes the weather troll who issued the station.</li>
-	 * <li><b>Current duck</b>: the wiki-verified "Your current duck comes to a stop." message --
-	 * the relevant target becomes the duck's end point, where it is retrieved.</li>
+	 * <li><b>Current duck</b>: the "You release your current duck and he begins tracking the
+	 * currents..." message, fired at task <em>start</em> (confirmed via a real client log) -- the
+	 * duck's end point is static, known task data, so re-targeting to it is useful the moment the
+	 * player releases the duck and needs to start sailing, not once they've already arrived.</li>
 	 * </ul>
 	 *
 	 * <p>See {@link SeaChartTwoStageTracker} for the exact matching rules and sourcing. Fires on
