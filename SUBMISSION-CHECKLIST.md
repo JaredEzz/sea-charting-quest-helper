@@ -72,11 +72,8 @@ dangerous-water gear-requirement-filter passes).
    the norm (one existing plugin uses `, ` with a space after each comma, so formatting isn't
    strictly enforced, but this repo's no-space style matches the majority and is fine as-is).
 
-9. ⚠️ **Icon** — No `icon.png` at the repo root. Per the Plugin Hub README this is explicitly
-   **optional** ("Optionally, you can add an icon... no larger than 48x72 px at the root of the
-   repository") — not a blocker, but worth adding before submitting since it improves the
-   Plugin Hub listing's appearance. Not fixed here since it requires actual artwork, not a text
-   change — flagged as a "should add" item for you.
+9. ✅ **Icon** — `icon.png` added at the repo root (48x48, Sailing cape + Captain's log badge,
+   composited from real OSRS item sprites, same technique as the Farming Profit plugin's icon).
 
 10. ✅ **Required files present** — `LICENSE` (BSD 2-Clause, now with two attribution addenda),
     `README.md` (feature list, how-it-works, testing instructions, submission note),
@@ -85,16 +82,12 @@ dangerous-water gear-requirement-filter passes).
 
 ## Overall verdict
 
-**Ready to submit, with one already-applied small fix and one optional nice-to-have.**
+**Ready to submit.** Every item above is now ✅.
 
 No blockers. No rule under either the Plugin Hub README or Jagex's Third Party Client Guidelines
 is crossed — the plugin is a pure read-state-and-display panel with a graceful, opt-in,
-no-dependency integration with an already-approved plugin (Shortest Path). The only thing this
-audit changed was a documentation/attribution nicety, not a functional or policy problem.
-
-Before opening the PR:
-- (Optional, not required) Add a 48x72px-or-smaller `icon.png` to the repo root — improves the
-  hub listing but isn't required for merge.
+no-dependency integration with an already-approved plugin (Shortest Path). This audit's fixes
+were a documentation/attribution nicety and the Hub-listing icon — nothing functional or policy-related.
 
 ## Fixes applied in this pass
 
