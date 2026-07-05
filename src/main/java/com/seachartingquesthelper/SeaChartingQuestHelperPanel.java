@@ -28,6 +28,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
@@ -48,6 +50,7 @@ import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.ProgressBar;
 
 /**
  * Side panel: nearest incomplete sea chart tasks first, with a type filter and a "hide
@@ -60,17 +63,28 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private static final int MAX_ROWS = 40;
 
 	private final JLabel statusLabel = new JLabel();
+	private final ProgressBar overallBar = new ProgressBar();
 	private final JPanel filterSection = new JPanel();
 	private final JPanel listSection = new JPanel();
-	private final JCheckBox hideNotReachableBox = new JCheckBox("Hide not-yet-reachable");
+	private final JCheckBox hideNotReachableBox;
+	private final JCheckBox seaCompletionBox;
+	private final JCheckBox smartSortBox;
+	private final JCheckBox nearestPortBox;
 	private final Map<SeaChartTaskType, JCheckBox> typeBoxes = new EnumMap<>(SeaChartTaskType.class);
 	private final Set<SeaChartTaskType> visibleTypes = EnumSet.allOf(SeaChartTaskType.class);
 
 	private Map<SeaChartTaskType, BufferedImage> icons = Collections.emptyMap();
 	private List<SeaChartTaskRow> rows = Collections.emptyList();
+	private Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = Collections.emptyMap();
+	private int overallComplete;
+	private int overallTotal;
 	private boolean hideNotReachable = false;
+	private boolean showSeaCompletion = true;
+	private boolean smartSort = true;
+	private boolean showNearestPort = true;
 
-	private Consumer<Boolean> onHideToggle = hide -> { };
+	/** (config key, new value) -- the plugin persists panel toggles back into plugin config. */
+	private BiConsumer<String, Boolean> onToggle = (key, value) -> { };
 	private Consumer<SeaChartTask> onTaskClicked = task -> { };
 
 	SeaChartingQuestHelperPanel()
@@ -94,6 +108,20 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		statusLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		statusLabel.setBorder(new EmptyBorder(0, 0, 6, 0));
 		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		// Overall charting progress, XP-goal style: green fill plus a "x/358 · 58.38%" label.
+		overallBar.setFont(FontManager.getRunescapeSmallFont());
+		overallBar.setPreferredSize(new Dimension(100, 16));
+		overallBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		overallBar.setForeground(ColorScheme.PROGRESS_COMPLETE_COLOR);
+		overallBar.setMaximumValue(SeaChartTask.values().length);
+		overallBar.setValue(0);
+		final JPanel barWrapper = new JPanel(new BorderLayout());
+		barWrapper.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		barWrapper.setBorder(new EmptyBorder(0, 0, 6, 0));
+		barWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+		barWrapper.add(overallBar, BorderLayout.CENTER);
+		barWrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, barWrapper.getPreferredSize().height));
 
 		// GridLayout, not FlowLayout: FlowLayout inside a BoxLayout.Y_AXIS parent miscalculates its
 		// wrapped preferred height on the first layout pass (it doesn't yet know the final width),
@@ -127,18 +155,18 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			filterSection.add(box);
 		}
 
-		hideNotReachableBox.setFont(FontManager.getRunescapeSmallFont());
-		hideNotReachableBox.setForeground(Color.WHITE);
-		hideNotReachableBox.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		hideNotReachableBox.setFocusPainted(false);
-		hideNotReachableBox.setBorder(new EmptyBorder(4, 0, 6, 0));
-		hideNotReachableBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		hideNotReachableBox.addActionListener(e ->
-		{
-			hideNotReachable = hideNotReachableBox.isSelected();
-			onHideToggle.accept(hideNotReachable);
-			rebuildList();
-		});
+		// Config-backed option toggles, persisted through the plugin's ConfigManager so they
+		// mirror the same keys shown in the plugin config panel.
+		hideNotReachableBox = buildToggle("Hide not-yet-reachable",
+			SeaChartingQuestHelperConfig.KEY_HIDE_NOT_YET_REACHABLE, v -> hideNotReachable = v);
+		hideNotReachableBox.setBorder(new EmptyBorder(4, 0, 0, 0));
+		seaCompletionBox = buildToggle("Show sea completion",
+			SeaChartingQuestHelperConfig.KEY_SHOW_SEA_COMPLETION, v -> showSeaCompletion = v);
+		smartSortBox = buildToggle("Prioritise nearly-done seas",
+			SeaChartingQuestHelperConfig.KEY_SMART_SORT, v -> smartSort = v);
+		nearestPortBox = buildToggle("Show nearest port hint",
+			SeaChartingQuestHelperConfig.KEY_SHOW_NEAREST_PORT, v -> showNearestPort = v);
+		nearestPortBox.setBorder(new EmptyBorder(0, 0, 6, 0));
 
 		listSection.setLayout(new GridLayout(0, 1, 0, 4));
 		listSection.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -146,25 +174,52 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		content.add(title);
 		content.add(statusLabel);
+		content.add(barWrapper);
 		content.add(filterSection);
 		content.add(hideNotReachableBox);
+		content.add(seaCompletionBox);
+		content.add(smartSortBox);
+		content.add(nearestPortBox);
 		content.add(listSection);
 
 		add(content, BorderLayout.NORTH);
 		rebuildList();
 	}
 
-	void setCallbacks(Consumer<Boolean> onHideToggle, Consumer<SeaChartTask> onTaskClicked)
+	private JCheckBox buildToggle(String label, String configKey, Consumer<Boolean> apply)
 	{
-		this.onHideToggle = onHideToggle;
+		JCheckBox box = new JCheckBox(label, true);
+		box.setFont(FontManager.getRunescapeSmallFont());
+		box.setForeground(Color.WHITE);
+		box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		box.setFocusPainted(false);
+		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+		box.addActionListener(e ->
+		{
+			apply.accept(box.isSelected());
+			onToggle.accept(configKey, box.isSelected());
+			rebuildList();
+		});
+		return box;
+	}
+
+	void setCallbacks(BiConsumer<String, Boolean> onToggle, Consumer<SeaChartTask> onTaskClicked)
+	{
+		this.onToggle = onToggle;
 		this.onTaskClicked = onTaskClicked;
 	}
 
-	/** Sets the hide-not-reachable checkbox from persisted config, without firing the callback. */
-	void initHideNotReachable(boolean hide)
+	/** Seeds all option toggles from persisted config, without firing the persist callback. */
+	void initOptions(boolean hideNotReachable, boolean showSeaCompletion, boolean smartSort, boolean showNearestPort)
 	{
-		this.hideNotReachable = hide;
-		hideNotReachableBox.setSelected(hide);
+		this.hideNotReachable = hideNotReachable;
+		this.showSeaCompletion = showSeaCompletion;
+		this.smartSort = smartSort;
+		this.showNearestPort = showNearestPort;
+		hideNotReachableBox.setSelected(hideNotReachable);
+		seaCompletionBox.setSelected(showSeaCompletion);
+		smartSortBox.setSelected(smartSort);
+		nearestPortBox.setSelected(showNearestPort);
 		rebuildList();
 	}
 
@@ -174,10 +229,24 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		rebuildList();
 	}
 
-	/** Full, distance-sorted (nearest first) set of remaining tasks for this tick. */
-	void setRows(List<SeaChartTaskRow> rows)
+	/**
+	 * Full, sorted set of remaining tasks for this tick (smart or nearest-first order, decided by
+	 * the plugin), plus the live per-sea and overall completion counts backing the "(x/y)"
+	 * markers and the progress bar.
+	 */
+	void setRows(List<SeaChartTaskRow> rows, Map<SeaChartRegion, SeaChartRegionProgress> regionProgress,
+		int overallComplete, int overallTotal)
 	{
 		this.rows = rows == null ? Collections.emptyList() : rows;
+		this.regionProgress = regionProgress == null ? Collections.emptyMap() : regionProgress;
+		this.overallComplete = overallComplete;
+		this.overallTotal = overallTotal;
+
+		overallBar.setMaximumValue(Math.max(1, overallTotal));
+		overallBar.setValue(overallComplete);
+		double percent = overallTotal <= 0 ? 0.0 : overallComplete * 100.0 / overallTotal;
+		overallBar.setCenterLabel(String.format("%d/%d · %.2f%%", overallComplete, overallTotal, percent));
+
 		rebuildList();
 	}
 
@@ -209,11 +278,13 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		}
 		else if (filtered.isEmpty())
 		{
-			statusLabel.setText("No tasks match the current filters.");
+			statusLabel.setText("No tasks match the current filters. (" + overallComplete + "/" + overallTotal + " charted)");
 		}
 		else
 		{
-			statusLabel.setText(filtered.size() + " shown, nearest first");
+			statusLabel.setText(filtered.size() + " shown, "
+				+ (smartSort ? "nearly-done seas first" : "nearest first")
+				+ " (" + overallComplete + "/" + overallTotal + " charted)");
 		}
 
 		for (SeaChartTaskRow row : filtered)
@@ -260,13 +331,31 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		detailLabel.setFont(FontManager.getRunescapeSmallFont());
 		detailLabel.setForeground(eligible ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 
-		JLabel portLabel = new JLabel("Nearest: " + task.getRegion().getNearestPort());
-		portLabel.setFont(FontManager.getRunescapeSmallFont());
-		portLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-
 		textPanel.add(nameLabel);
 		textPanel.add(detailLabel);
-		textPanel.add(portLabel);
+
+		if (showSeaCompletion)
+		{
+			String regionText = task.getRegion().getLabel();
+			SeaChartRegionProgress progress = regionProgress.get(task.getRegion());
+			if (progress != null)
+			{
+				regionText += " (" + progress.getComplete() + "/" + progress.getTotal() + ")";
+			}
+			JLabel regionLabel = new JLabel(regionText);
+			regionLabel.setFont(FontManager.getRunescapeSmallFont());
+			regionLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			textPanel.add(regionLabel);
+		}
+
+		if (showNearestPort)
+		{
+			JLabel portLabel = new JLabel("Nearest: " + task.getRegion().getNearestPort());
+			portLabel.setFont(FontManager.getRunescapeSmallFont());
+			portLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			textPanel.add(portLabel);
+		}
+
 		panel.add(textPanel, BorderLayout.CENTER);
 
 		panel.setCursor(new Cursor(Cursor.HAND_CURSOR));

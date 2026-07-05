@@ -33,6 +33,13 @@ public interface SeaChartingQuestHelperConfig extends Config
 {
 	String GROUP = "seaChartingQuestHelper";
 
+	// Key names shared with the panel's config-backed checkboxes, which persist through these
+	// same keys so the sidebar toggles and the plugin config panel stay one source of truth.
+	String KEY_HIDE_NOT_YET_REACHABLE = "hideNotYetReachable";
+	String KEY_SHOW_SEA_COMPLETION = "showSeaCompletion";
+	String KEY_SMART_SORT = "smartSort";
+	String KEY_SHOW_NEAREST_PORT = "showNearestPort";
+
 	@ConfigItem(
 		keyName = "hideNotYetReachable",
 		name = "Hide not-yet-reachable",
@@ -51,6 +58,39 @@ public interface SeaChartingQuestHelperConfig extends Config
 		position = 1
 	)
 	default boolean shortestPathIntegration()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SHOW_SEA_COMPLETION,
+		name = "Show sea completion",
+		description = "Show each task's sea/ocean and how many of its tasks you've charted, e.g. Ardent Ocean (3/12)",
+		position = 2
+	)
+	default boolean showSeaCompletion()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SMART_SORT,
+		name = "Prioritise nearly-done seas",
+		description = "Blend distance with per-sea completion so nearly-finished seas get closed out first; off = pure nearest-first",
+		position = 3
+	)
+	default boolean smartSort()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SHOW_NEAREST_PORT,
+		name = "Show nearest port hint",
+		description = "Show the nearest port/teleport hint line for each task's sea",
+		position = 4
+	)
+	default boolean showNearestPort()
 	{
 		return true;
 	}

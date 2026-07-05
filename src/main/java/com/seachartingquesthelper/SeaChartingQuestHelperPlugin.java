@@ -101,8 +101,9 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 	protected void startUp()
 	{
 		panel = new SeaChartingQuestHelperPanel();
-		panel.setCallbacks(this::onHideToggle, this::onTaskClicked);
-		panel.initHideNotReachable(config.hideNotYetReachable());
+		panel.setCallbacks(this::onPanelToggle, this::onTaskClicked);
+		panel.initOptions(config.hideNotYetReachable(), config.showSeaCompletion(),
+			config.smartSort(), config.showNearestPort());
 
 		final Map<SeaChartTaskType, BufferedImage> icons = new EnumMap<>(SeaChartTaskType.class);
 		for (SeaChartTaskType type : SeaChartTaskType.values())
@@ -217,20 +218,35 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 			boolean eligible = SeaChartRequirements.meetsRequirement(client, task);
 			rows.add(new SeaChartTaskRow(task, distance, eligible));
 		}
-		rows.sort(Comparator.comparingInt(SeaChartTaskRow::getDistance));
 
+		// Per-sea completion counts feed both the panel's "(x/y)" markers and the smart sort's
+		// remaining-in-sea weighting; `completed` is kept live by onVarbitChanged, so these
+		// advance the moment a task is charted.
+		final Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = SeaChartRegionProgress.compute(completed);
+		if (config.smartSort())
+		{
+			SeaChartTaskSorter.sort(rows, regionProgress);
+		}
+		else
+		{
+			rows.sort(Comparator.comparingInt(SeaChartTaskRow::getDistance));
+		}
+
+		final int overallComplete = completed.size();
+		final int overallTotal = SeaChartTask.values().length;
 		SwingUtilities.invokeLater(() ->
 		{
 			if (panel != null)
 			{
-				panel.setRows(rows);
+				panel.setRows(rows, regionProgress, overallComplete, overallTotal);
 			}
 		});
 	}
 
-	private void onHideToggle(boolean hide)
+	/** Persists a panel checkbox toggle back into this plugin's config group. */
+	private void onPanelToggle(String configKey, boolean value)
 	{
-		configManager.setConfiguration(SeaChartingQuestHelperConfig.GROUP, "hideNotYetReachable", hide);
+		configManager.setConfiguration(SeaChartingQuestHelperConfig.GROUP, configKey, value);
 	}
 
 	/**
