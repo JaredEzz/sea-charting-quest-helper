@@ -1,0 +1,95 @@
+# Sea Charting Quest Helper
+
+A [RuneLite](https://runelite.net) plugin for **Sailing** that does the one thing no existing
+plugin does — turns the 358-task sea-charting grind into a **Quest Helper-style side panel**:
+nearest incomplete task first, auto-advancing the instant you chart something.
+
+## Why
+
+Sailing's sea charting has **358 individual chart tasks** spread across every ocean, each gated
+by its own Sailing level (and sometimes a quest). The existing Plugin Hub **Sailing** plugin (by
+LlemonDuck) highlights nearby chartable locations on the map/minimap once you're already standing
+next to one — but there's no way to see, from anywhere, which of the 358 you're missing, which
+one is nearest, or what's next once you finish one. That's the gap Quest Helper fills for quests:
+a running list, sorted and auto-advancing, instead of "sail around and hope."
+
+## Features
+
+- **Side panel** listing incomplete sea chart tasks, sorted by distance from your current
+  position — recomputed every game tick while the panel is open.
+- Each row shows the task's **type icon**, name, **distance in tiles**, and (if you haven't met
+  the requirement yet) a grayed-out **"Requires N Sailing"** label, mirroring Quest Helper's
+  locked-step styling.
+- **Auto-advance:** completing a task flips its RuneLite varbit, which the plugin picks up
+  instantly via `VarbitChanged` — the task drops off the list and the panel re-sorts. No manual
+  refresh.
+- **Type filter** (Oddity / Spyglass / Sealed crate / Current duck / Diving / Weather checkboxes)
+  and a **"hide not-yet-reachable"** toggle (persisted in config) for tasks whose level/quest gate
+  you haven't cleared.
+- **Optional routing:** clicking a task sends its location to the
+  [Shortest Path](https://github.com/Skretzo/shortest-path) plugin (if installed and enabled) via
+  its documented `PluginMessage` API, so it draws a route. No compile-time dependency on that
+  plugin — if it's not installed, the message is simply never picked up.
+- The rendered list is capped to the nearest 40 matching tasks. Nobody wants to scroll a 358-row
+  list, and re-rendering hundreds of Swing rows every tick would be wasteful — "what's my next
+  task" only ever needs the nearby few.
+
+## How it works (for the curious)
+
+- **Data source:** all 358 tasks' `WorldPoint` locations, completion `VarbitID`s,
+  `ObjectID`/`NpcID` targets and Sailing level requirements are `net.runelite.api.gameval`
+  constants — official RuneLite game-data constants, not proprietary to any one plugin, so
+  completion state (`client.getVarbitValue(...)`) is readable regardless of dependency.
+  `SeaChartTask.java` mechanically compiles this table (see credit below) into its own enum,
+  independent of any other plugin's code at compile time or runtime.
+- **Auto-advance:** a `Map<Integer, SeaChartTask>` keyed by completion varbit lets
+  `onVarbitChanged` update a `Set<SeaChartTask>` of completed tasks in O(1); the panel filters
+  against that set and re-sorts by distance on every `GameTick` while visible.
+- **Requirement gating:** each task type maps to one governing quest (mirroring the actual game
+  design — Current Duck → Current Affairs, Sealed Crate → Prying Times, Diving → Recipe for
+  Disaster: Pirate Pete, everything else → Pandemonium), checked against `QuestState.FINISHED`
+  plus `client.getRealSkillLevel(Skill.SAILING)`.
+
+### Credit
+
+The sea chart task table (locations, completion varbits, object/npc ids, level requirements) is
+mechanically compiled from the public data in the **Sailing** plugin by
+[LlemonDuck](https://github.com/LlemonDuck/sailing) (BSD-2-Clause). Those are Jagex's public
+`gameval` game-data constants, not that plugin's creative expression — but the compiled table
+itself was real work, so it's credited in the LICENSE and in `SeaChartTask.java`'s header. No
+source code from that project is reused; this plugin does not depend on it at compile time or
+runtime, and only vendors a fresh copy of the data table as its own enum.
+
+### Known caveat
+
+The panel checks Sailing level and quest state, but **can't verify you physically have the boat
+upgrades** (keel/helm/brazier) needed to actually reach far oceans — the same limitation
+Quest Helper has with F2P/members gates it can't detect. Treat "can I get there" as your own
+problem once a task shows as level/quest-eligible.
+
+## Building
+
+Requires JDK 11 (RuneLite's build target).
+
+```sh
+./gradlew build      # compiles + runs the unit tests
+./gradlew run        # launches RuneLite in dev mode with this plugin loaded
+```
+
+## Testing it
+
+- **Solo, fully testable right now:** Sailing is live. Open the panel near the sea, confirm the
+  nearest-task sort matches what you'd expect standing where you are, sail to one, chart it, and
+  confirm it drops off the list and the panel re-sorts without a manual reload.
+- Cross-check a level-gated task — e.g. `TASK_52` (Rainbow Reef mermaid guide, level 72) — shows
+  as locked with "Requires 72 Sailing" until your Sailing level actually clears it.
+- Toggle the type filter checkboxes and the "hide not-yet-reachable" box and confirm the list
+  updates accordingly.
+- If you run [Shortest Path](https://github.com/Skretzo/shortest-path), click a task row and
+  confirm it draws a route to that location.
+
+## Submitting to the Plugin Hub
+
+Push to a public repo, then add a `plugins/sea-charting-quest-helper` file
+(`repository=…`, `commit=…`) to a [`runelite/plugin-hub`](https://github.com/runelite/plugin-hub)
+fork and open a PR. See the Plugin Hub README for the current rules.
