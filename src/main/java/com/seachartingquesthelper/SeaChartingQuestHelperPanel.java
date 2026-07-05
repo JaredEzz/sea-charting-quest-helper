@@ -26,6 +26,7 @@ package com.seachartingquesthelper;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
@@ -87,14 +88,18 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		title.setForeground(Color.WHITE);
 		title.setFont(FontManager.getRunescapeBoldFont());
 		title.setBorder(new EmptyBorder(0, 0, 6, 0));
+		title.setAlignmentX(Component.LEFT_ALIGNMENT);
+		title.setHorizontalAlignment(SwingConstants.LEFT);
 
 		statusLabel.setFont(FontManager.getRunescapeSmallFont());
 		statusLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		statusLabel.setBorder(new EmptyBorder(0, 0, 6, 0));
+		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		filterSection.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 0));
 		filterSection.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		filterSection.setBorder(new EmptyBorder(4, 4, 4, 4));
+		filterSection.setAlignmentX(Component.LEFT_ALIGNMENT);
 		for (SeaChartTaskType type : SeaChartTaskType.values())
 		{
 			JCheckBox box = new JCheckBox(type.getLabel(), true);
@@ -123,6 +128,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		hideNotReachableBox.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		hideNotReachableBox.setFocusPainted(false);
 		hideNotReachableBox.setBorder(new EmptyBorder(4, 0, 6, 0));
+		hideNotReachableBox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		hideNotReachableBox.addActionListener(e ->
 		{
 			hideNotReachable = hideNotReachableBox.isSelected();
@@ -132,6 +138,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		listSection.setLayout(new GridLayout(0, 1, 0, 4));
 		listSection.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		listSection.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		content.add(title);
 		content.add(statusLabel);
@@ -249,8 +256,13 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		detailLabel.setFont(FontManager.getRunescapeSmallFont());
 		detailLabel.setForeground(eligible ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 
+		JLabel portLabel = new JLabel("Nearest: " + task.getRegion().getNearestPort());
+		portLabel.setFont(FontManager.getRunescapeSmallFont());
+		portLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+
 		textPanel.add(nameLabel);
 		textPanel.add(detailLabel);
+		textPanel.add(portLabel);
 		panel.add(textPanel, BorderLayout.CENTER);
 
 		panel.setCursor(new Cursor(Cursor.HAND_CURSOR));

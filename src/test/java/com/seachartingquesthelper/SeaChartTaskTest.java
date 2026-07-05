@@ -86,4 +86,36 @@ public class SeaChartTaskTest
 			assertTrue(task + " has a negative level requirement", task.getLevel() >= 0);
 		}
 	}
+
+	@Test
+	public void everyTaskHasARegionAndPortHint()
+	{
+		// Region assignment is approximate (see SeaChartRegion's Javadoc), but every one of the
+		// 358 tasks must resolve to some region with a non-blank port hint -- the panel always
+		// renders a "Nearest: ..." line.
+		for (SeaChartTask task : SeaChartTask.values())
+		{
+			SeaChartRegion region = task.getRegion();
+			assertNotNull(task + " has no region", region);
+			assertTrue(task + "'s region has a blank port hint", !region.getNearestPort().trim().isEmpty());
+		}
+	}
+
+	@Test
+	public void regionBoundariesMatchDocumentedTaskIdRanges()
+	{
+		// Spot-check the boundary task ids on each side of every documented range edge.
+		assertEquals(SeaChartRegion.ARDENT, SeaChartTask.TASK_0.getRegion());
+		assertEquals(SeaChartRegion.ARDENT, SeaChartTask.TASK_67.getRegion());
+		assertEquals(SeaChartRegion.UNQUIET, SeaChartTask.TASK_68.getRegion());
+		assertEquals(SeaChartRegion.UNQUIET, SeaChartTask.TASK_103.getRegion());
+		assertEquals(SeaChartRegion.SHROUDED, SeaChartTask.TASK_104.getRegion());
+		assertEquals(SeaChartRegion.SHROUDED, SeaChartTask.TASK_177.getRegion());
+		assertEquals(SeaChartRegion.SUNSET, SeaChartTask.TASK_180.getRegion());
+		assertEquals(SeaChartRegion.SUNSET, SeaChartTask.TASK_192.getRegion());
+		assertEquals(SeaChartRegion.WESTERN, SeaChartTask.TASK_194.getRegion());
+		assertEquals(SeaChartRegion.WESTERN, SeaChartTask.TASK_249.getRegion());
+		assertEquals(SeaChartRegion.NORTHERN_MISC, SeaChartTask.TASK_250.getRegion());
+		assertEquals(SeaChartRegion.NORTHERN_MISC, SeaChartTask.TASK_357.getRegion());
+	}
 }
