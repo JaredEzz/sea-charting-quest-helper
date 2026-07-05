@@ -28,7 +28,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
-import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -96,7 +95,12 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		statusLabel.setBorder(new EmptyBorder(0, 0, 6, 0));
 		statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		filterSection.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		// GridLayout, not FlowLayout: FlowLayout inside a BoxLayout.Y_AXIS parent miscalculates its
+		// wrapped preferred height on the first layout pass (it doesn't yet know the final width),
+		// so only the first unwrapped row gets space reserved and later rows become invisible/
+		// unclickable. GridLayout reserves the correct height for N rows up front regardless of
+		// width-negotiation order.
+		filterSection.setLayout(new GridLayout(0, 2, 4, 2));
 		filterSection.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		filterSection.setBorder(new EmptyBorder(4, 4, 4, 4));
 		filterSection.setAlignmentX(Component.LEFT_ALIGNMENT);
