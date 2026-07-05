@@ -31,3 +31,15 @@ public game-data constants used by the Sailing plugin by LlemonDuck
 (https://github.com/LlemonDuck/sailing), which is also BSD 2-Clause licensed. No code or
 creative expression from that project is reused -- only the public Jagex varbit/coordinate
 data it had already compiled.
+
+---
+
+Two other small data tables are sourced from the OSRS Wiki (https://oldschool.runescape.wiki),
+whose content is published under CC BY-NC-SA 3.0
+(https://creativecommons.org/licenses/by-nc-sa/3.0/): the per-task sea/ocean classification used
+to pick a "nearest port" hint (SeaChartRegion.java), sourced from the factual {{SeaChartRow}}
+id/sea/ocean fields on the wiki's "Sea charting" page; and the per-sea special-boat-facility
+(keel/helm/brazier/inoculation) requirements (SeaChartGearRequirements.java), sourced from the
+wiki's per-sea hazard pages. Both extract only factual game-mechanic mappings (which numbered
+task/sea needs which facility) rather than the wiki's creative prose, but the OSRS Wiki is
+credited here in the interest of good practice.
