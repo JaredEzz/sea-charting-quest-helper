@@ -416,7 +416,7 @@ public enum SeaChartTask
 		return client.getVarbitValue(varbit) != 0;
 	}
 
-	/** Approximate ocean this task belongs to -- see {@link SeaChartRegion} for the caveats. */
+	/** Real ocean/region this task belongs to -- see {@link SeaChartRegion} for sourcing. */
 	public SeaChartRegion getRegion()
 	{
 		return SeaChartRegion.forTaskId(taskId);
