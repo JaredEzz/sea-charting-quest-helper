@@ -433,6 +433,15 @@ public enum SeaChartTask
 		return SeaChartGearRequirements.forTaskName(taskName);
 	}
 
+	/**
+	 * What sampling this task's Sealed crate actually does, or {@code null} if not a crate task or
+	 * its effect isn't documented -- see {@link SeaChartCrateEffects} for sourcing.
+	 */
+	public SeaChartCrateEffect getCrateEffect()
+	{
+		return SeaChartCrateEffects.forTaskName(taskName);
+	}
+
 	public static SeaChartTask byVarbit(int varbitId)
 	{
 		return BY_VARBIT.get(varbitId);

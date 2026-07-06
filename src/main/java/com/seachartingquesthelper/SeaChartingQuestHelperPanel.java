@@ -479,15 +479,35 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		panel.add(textPanel, BorderLayout.CENTER);
 
-		panel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-		panel.addMouseListener(new java.awt.event.MouseAdapter()
+		// Shared listener so the ⓘ icon below (which registers its own MouseListener via
+		// setToolTipText/ToolTipManager) doesn't swallow row clicks -- Swing dispatches mouse
+		// events to the deepest component under the cursor and does not bubble them to ancestors,
+		// so the info icon needs this listener attached directly or clicking it would silently
+		// fail to route.
+		java.awt.event.MouseAdapter routeClickListener = new java.awt.event.MouseAdapter()
 		{
 			@Override
 			public void mouseClicked(java.awt.event.MouseEvent e)
 			{
 				onTaskClicked.accept(task);
 			}
-		});
+		};
+
+		SeaChartCrateEffect crateEffect = task.getCrateEffect();
+		if (crateEffect != null)
+		{
+			JLabel infoLabel = new JLabel("ⓘ");
+			infoLabel.setFont(infoLabel.getFont().deriveFont(14f));
+			infoLabel.setForeground(crateEffect.isDangerous() ? ColorScheme.PROGRESS_ERROR_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+			infoLabel.setToolTipText("<html><body style='width:200px'>" + crateEffect.getDescription() + "</body></html>");
+			infoLabel.setVerticalAlignment(SwingConstants.TOP);
+			infoLabel.setBorder(new EmptyBorder(2, 4, 0, 0));
+			infoLabel.addMouseListener(routeClickListener);
+			panel.add(infoLabel, BorderLayout.EAST);
+		}
+
+		panel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+		panel.addMouseListener(routeClickListener);
 
 		return panel;
 	}

@@ -55,8 +55,10 @@ import java.util.Set;
  * Reef and Southern Expanse chart tasks (both level-72-gated, matching Sunbleak Island's level-72
  * mooring requirement). Requires an adamant helm or better.
  * <li>"Icy seas" -- Weiss Melt, Everwinter Sea, Stoneheart Sea, Weissmere, Winter's Edge,
- * Shiverwake Expanse. Requires an eternal brazier; otherwise crew freeze and the ship takes
- * increasing damage over time.
+ * Shiverwake Expanse, Idestia Strait, Lunar Sea, Kannski Tides, V's Belt (all ten seas the wiki's
+ * dedicated "Icy seas" page lists, confirmed against the Northern Ocean's full sea list -- an
+ * earlier version of this class only had the first six). Requires an eternal brazier; otherwise
+ * crew freeze and the ship takes increasing damage over time.
  * <li>"Fetid waters" -- Backwater, Breakbone Strait, Mythic Sea, Sea of Souls, Zul-Egil. Requires
  * an inoculation station; otherwise disease plus 5 damage per tick and a severe speed penalty.
  * </ul>
@@ -73,7 +75,7 @@ final class SeaChartGearRequirements
 	{
 		Map<String, Set<SeaChartGearRequirement>> map = new HashMap<>();
 		tag(map, SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM, "Porth Gwenith", "Porth Neigwl", "Rainbow Reef", "Southern Expanse");
-		tag(map, SeaChartGearRequirement.ETERNAL_BRAZIER, "Weiss Melt", "Everwinter Sea", "Stoneheart Sea", "Weissmere", "Winters Edge", "Shiverwake Expanse");
+		tag(map, SeaChartGearRequirement.ETERNAL_BRAZIER, "Weiss Melt", "Everwinter Sea", "Stoneheart Sea", "Weissmere", "Winters Edge", "Shiverwake Expanse", "Idestia Strait", "Lunar Sea", "Kannski Tides", "Vs Belt");
 		tag(map, SeaChartGearRequirement.INOCULATION_STATION, "Backwater", "Breakbone Strait", "Mythic Sea", "Sea Of Souls", "Zul Egil");
 		return Collections.unmodifiableMap(map);
 	}
