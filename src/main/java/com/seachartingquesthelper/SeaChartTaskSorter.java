@@ -29,9 +29,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Orders remaining tasks by a blend of raw proximity and how close each task's sea/ocean is to
- * full completion, so the player naturally closes out nearly-finished seas instead of leaving one
- * stray task behind in each and paying a dedicated return sail for it later.
+ * Orders remaining tasks by a blend of raw proximity and how close each task's individual sea
+ * (see {@link SeaChartSea} -- e.g. "Shiverwake Expanse", not the whole "Northern Ocean" it sits
+ * in) is to full completion, so the player naturally closes out nearly-finished seas instead of
+ * leaving one stray task behind in each and paying a dedicated return sail for it later.
+ *
+ * <p><b>Fixed a real bug:</b> an earlier version keyed the "remaining" count off {@link
+ * SeaChartRegion} (the 7 broad oceans) instead of the true sea. Since an ocean can hold well over
+ * a dozen distinct seas (Northern Ocean alone spans 75 tasks across ~14 seas), "remaining in
+ * region" almost never dropped low enough to trigger a meaningful bonus -- the completion-priority
+ * feature was correct in design but nearly inert in practice. This class's own Javadoc already
+ * described the bonus in terms of "a typical centre-to-centre sail between adjacent seas", which
+ * only makes sense at the true sea granularity -- the region-keyed implementation didn't match its
+ * own documented intent.
  *
  * <p><b>Design notes -- why "distance minus (bonus / remaining)":</b>
  *
@@ -90,10 +100,10 @@ final class SeaChartTaskSorter
 	 * The blended score: raw tile distance minus this task's share of the avoided-return-trip
 	 * bonus. Lower is better.
 	 */
-	static double effectiveDistance(int distance, int remainingInRegion)
+	static double effectiveDistance(int distance, int remainingInSea)
 	{
 		// Guard against a nonsensical count; an incomplete task always leaves >= 1 remaining.
-		int remaining = Math.max(1, remainingInRegion);
+		int remaining = Math.max(1, remainingInSea);
 		return distance - COMPLETION_BONUS_TILES / remaining;
 	}
 
@@ -101,10 +111,10 @@ final class SeaChartTaskSorter
 	 * Sorts rows in place by {@link #effectiveDistance}, tie-broken by raw distance and then by
 	 * stable task id for determinism.
 	 *
-	 * @param progress per-region live progress; a region missing from the map is treated as
-	 *                 having many tasks remaining (no completion bonus)
+	 * @param progress per-sea live progress; a sea missing from the map is treated as having many
+	 *                 tasks remaining (no completion bonus)
 	 */
-	static void sort(List<SeaChartTaskRow> rows, Map<SeaChartRegion, SeaChartRegionProgress> progress)
+	static void sort(List<SeaChartTaskRow> rows, Map<SeaChartSea, SeaChartSeaProgress> progress)
 	{
 		rows.sort(Comparator
 			.comparingDouble((SeaChartTaskRow row) -> effectiveDistance(row.getDistance(), remainingFor(row, progress)))
@@ -112,9 +122,9 @@ final class SeaChartTaskSorter
 			.thenComparingInt(row -> row.getTask().getTaskId()));
 	}
 
-	private static int remainingFor(SeaChartTaskRow row, Map<SeaChartRegion, SeaChartRegionProgress> progress)
+	private static int remainingFor(SeaChartTaskRow row, Map<SeaChartSea, SeaChartSeaProgress> progress)
 	{
-		SeaChartRegionProgress regionProgress = progress.get(row.getTask().getRegion());
-		return regionProgress == null ? Integer.MAX_VALUE : regionProgress.getRemaining();
+		SeaChartSeaProgress seaProgress = progress.get(row.getTask().getSea());
+		return seaProgress == null ? Integer.MAX_VALUE : seaProgress.getRemaining();
 	}
 }

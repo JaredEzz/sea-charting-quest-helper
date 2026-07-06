@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -104,9 +105,9 @@ public class SeaChartRegionProgressTest
 		regionProgress.put(regionA, new SeaChartRegionProgress(25, 75));
 
 		List<SeaChartTaskRow> sortedRows = Arrays.asList(
-			new SeaChartTaskRow(aTasks.get(0), 10, true, false),
-			new SeaChartTaskRow(aTasks.get(1), 20, true, false),
-			new SeaChartTaskRow(aTasks.get(2), 30, true, false));
+			new SeaChartTaskRow(aTasks.get(0), 10, true, false, false),
+			new SeaChartTaskRow(aTasks.get(1), 20, true, false, false),
+			new SeaChartTaskRow(aTasks.get(2), 30, true, false, false));
 
 		List<Integer> projected = SeaChartRegionProgress.projectedCompleteCounts(sortedRows, regionProgress);
 
@@ -130,11 +131,11 @@ public class SeaChartRegionProgressTest
 		// Interleaved: A, B, A, B, A -- other seas' rows in between must not disturb each sea's
 		// own running count.
 		List<SeaChartTaskRow> sortedRows = Arrays.asList(
-			new SeaChartTaskRow(aTasks.get(0), 10, true, false),
-			new SeaChartTaskRow(bTasks.get(0), 15, true, false),
-			new SeaChartTaskRow(aTasks.get(1), 20, true, false),
-			new SeaChartTaskRow(bTasks.get(1), 25, true, false),
-			new SeaChartTaskRow(aTasks.get(2), 30, true, false));
+			new SeaChartTaskRow(aTasks.get(0), 10, true, false, false),
+			new SeaChartTaskRow(bTasks.get(0), 15, true, false, false),
+			new SeaChartTaskRow(aTasks.get(1), 20, true, false, false),
+			new SeaChartTaskRow(bTasks.get(1), 25, true, false, false),
+			new SeaChartTaskRow(aTasks.get(2), 30, true, false, false));
 
 		List<Integer> projected = SeaChartRegionProgress.projectedCompleteCounts(sortedRows, regionProgress);
 
@@ -153,12 +154,15 @@ public class SeaChartRegionProgressTest
 		regionProgress.put(regionB, new SeaChartRegionProgress(10, 50));
 
 		List<SeaChartTaskRow> rows = new ArrayList<>(Arrays.asList(
-			new SeaChartTaskRow(aTasks.get(0), 500, true, false),
-			new SeaChartTaskRow(aTasks.get(1), 450, true, false),
-			new SeaChartTaskRow(aTasks.get(2), 400, true, false)));
+			new SeaChartTaskRow(aTasks.get(0), 500, true, false, false),
+			new SeaChartTaskRow(aTasks.get(1), 450, true, false, false),
+			new SeaChartTaskRow(aTasks.get(2), 400, true, false, false)));
 
-		// Real sort, driven by the real (unprojected) remaining count.
-		SeaChartTaskSorter.sort(rows, regionProgress);
+		// A real, stable sort (plain distance -- SeaChartTaskSorter's own smart-sort scoring is
+		// keyed by SeaChartSea, not SeaChartRegion, and is covered separately by
+		// SeaChartTaskSorterTest; this test only needs some real, reproducible order to check
+		// projection immutability against).
+		rows.sort(Comparator.comparingInt(SeaChartTaskRow::getDistance));
 		List<SeaChartTask> orderBeforeProjection = new ArrayList<>();
 		for (SeaChartTaskRow row : rows)
 		{
@@ -181,13 +185,13 @@ public class SeaChartRegionProgressTest
 		}
 		assertEquals(orderBeforeProjection, orderAfterProjection);
 
-		// Re-sorting a fresh copy with the same (untouched) map reproduces the identical order --
-		// proof the sorter's scoring is driven only by the real map, never by any projection.
+		// Re-sorting a fresh copy of the same rows reproduces the identical order -- a sanity check
+		// that the earlier projection call didn't leave any hidden state behind anywhere.
 		List<SeaChartTaskRow> freshRows = new ArrayList<>(Arrays.asList(
-			new SeaChartTaskRow(aTasks.get(2), 400, true, false),
-			new SeaChartTaskRow(aTasks.get(0), 500, true, false),
-			new SeaChartTaskRow(aTasks.get(1), 450, true, false)));
-		SeaChartTaskSorter.sort(freshRows, regionProgress);
+			new SeaChartTaskRow(aTasks.get(2), 400, true, false, false),
+			new SeaChartTaskRow(aTasks.get(0), 500, true, false, false),
+			new SeaChartTaskRow(aTasks.get(1), 450, true, false, false)));
+		freshRows.sort(Comparator.comparingInt(SeaChartTaskRow::getDistance));
 		List<SeaChartTask> orderAfterFreshSort = new ArrayList<>();
 		for (SeaChartTaskRow row : freshRows)
 		{

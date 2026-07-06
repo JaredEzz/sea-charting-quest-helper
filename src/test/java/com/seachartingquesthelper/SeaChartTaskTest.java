@@ -3,6 +3,7 @@ package com.seachartingquesthelper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -94,13 +95,15 @@ public class SeaChartTaskTest
 	public void everyTaskHasARegionAndPortHint()
 	{
 		// Region assignment is sourced directly from the OSRS Wiki's per-task ocean/sea tags (see
-		// SeaChartRegion's Javadoc), but every one of the 358 tasks must still resolve to some
-		// region with a non-blank port hint -- the panel always renders a "Nearest: ..." line.
+		// SeaChartRegion's Javadoc); the nearest-teleport hint is per-sea (SeaChartSea), not
+		// per-region -- see SeaChartSeaTest for the sea-level equivalent of this check. Every one
+		// of the 358 tasks must still resolve to some region and some non-blank port hint, since
+		// the panel always renders a "Nearest: ..." line.
 		for (SeaChartTask task : SeaChartTask.values())
 		{
 			SeaChartRegion region = task.getRegion();
 			assertNotNull(task + " has no region", region);
-			assertTrue(task + "'s region has a blank port hint", !region.getNearestPort().trim().isEmpty());
+			assertTrue(task + "'s sea has a blank port hint", !task.getSea().getNearestPort().trim().isEmpty());
 		}
 	}
 
@@ -181,13 +184,25 @@ public class SeaChartTaskTest
 	@Test
 	public void porthGwenithAndPorthNeigwlNeedAdamantKeelOrHelm()
 	{
-		// Crystal-flecked waters, per the OSRS Wiki's "Crystal-flecked waters" page.
+		// Crystal-flecked waters, per the wiki's own per-task hazard= field (4 seas total).
 		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
 			only(SeaChartTask.TASK_170.getGearRequirements())); // Porth Gwenith, mermaid guide
 		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
 			only(SeaChartTask.TASK_173.getGearRequirements())); // Porth Gwenith, current duck
 		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
 			only(SeaChartTask.TASK_146.getGearRequirements())); // Porth Neigwl, weather
+	}
+
+	@Test
+	public void piscatorisSeaAndTirannwnBightNeedAdamantKeelOrHelm()
+	{
+		// The other two of Crystal-flecked waters' four seas -- missed by an earlier version that
+		// matched against the wiki's "Crystal-flecked waters" hub page prose instead of the raw
+		// per-task hazard= data, which only names Porth Gwenith/Porth Neigwl as examples.
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_171.getGearRequirements())); // Piscatoris Sea, mermaid guide
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_145.getGearRequirements())); // Tirannwn Bight, weather
 	}
 
 	@Test
@@ -204,7 +219,8 @@ public class SeaChartTaskTest
 	@Test
 	public void icySeasNeedEternalBrazier()
 	{
-		// Per the OSRS Wiki's "Icy seas" page.
+		// All ten icy seas per the wiki's own per-task hazard= field -- an earlier version only
+		// covered the first six (Idestia Strait, Lunar Sea, Kannski Tides, V's Belt were missing).
 		SeaChartTask[] icySeaTasks = {
 			SeaChartTask.TASK_219, // Weiss Melt
 			SeaChartTask.TASK_215, // Everwinter Sea
@@ -212,6 +228,10 @@ public class SeaChartTaskTest
 			SeaChartTask.TASK_217, // Weissmere
 			SeaChartTask.TASK_169, // Winters Edge
 			SeaChartTask.TASK_226, // Shiverwake Expanse
+			SeaChartTask.TASK_213, // Idestia Strait, current duck
+			SeaChartTask.TASK_235, // Lunar Sea, spyglass
+			SeaChartTask.TASK_216, // Kannski Tides, current duck
+			SeaChartTask.TASK_211, // Vs Belt, current duck
 		};
 		for (SeaChartTask task : icySeaTasks)
 		{
@@ -221,21 +241,97 @@ public class SeaChartTaskTest
 	}
 
 	@Test
+	public void stormySeasNeedMastUpgrade()
+	{
+		// Per the wiki's own per-task hazard= field -- a hazard category with no handling at all
+		// in an earlier version of this class.
+		assertEquals(SeaChartGearRequirement.MAST_UPGRADE,
+			only(SeaChartTask.TASK_70.getGearRequirements())); // Kharazi Strait, current duck
+		assertEquals(SeaChartGearRequirement.MAST_UPGRADE,
+			only(SeaChartTask.TASK_57.getGearRequirements())); // Storm Tempor, weather
+	}
+
+	@Test
 	public void diseaseSeasNeedInoculationStation()
 	{
-		// Fetid waters, per the OSRS Wiki's "Fetid waters" page.
+		// Fetid waters, per the wiki's own per-task hazard= field.
 		SeaChartTask[] fetidSeaTasks = {
 			SeaChartTask.TASK_128, // Backwater
 			SeaChartTask.TASK_105, // Breakbone Strait
 			SeaChartTask.TASK_127, // Mythic Sea
 			SeaChartTask.TASK_311, // Sea Of Souls
-			SeaChartTask.TASK_107, // Zul Egil
+			SeaChartTask.TASK_114, // "Zul Andra" (Spyglass) -- named after a flavour landmark, but
+			                        // its real sea is Zul-Egil; only catchable by keying off
+			                        // getSea() rather than taskName (see SeaChartGearRequirements).
 		};
 		for (SeaChartTask task : fetidSeaTasks)
 		{
 			assertEquals(task + " should need an inoculation station", SeaChartGearRequirement.INOCULATION_STATION,
 				only(task.getGearRequirements()));
 		}
+	}
+
+	@Test
+	public void taskNamedAfterAWrongSeaResolvesToItsRealSeasHazard()
+	{
+		// TASK_107 is a Weather task literally named "Zul Egil", but its real sea (per the wiki's
+		// sea= tag) is Porth Neigwl -- a name-based lookup would (and, in an earlier version, did)
+		// wrongly flag it INOCULATION_STATION instead of the correct ADAMANT_KEEL_OR_HELM.
+		assertEquals(SeaChartSea.PORTH_NEIGWL, SeaChartTask.TASK_107.getSea());
+		assertEquals(SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			only(SeaChartTask.TASK_107.getGearRequirements()));
+	}
+
+	@Test
+	public void grandrootBayAndBlackLobsterRequireARaft()
+	{
+		// The only two of the 358 tasks whose own description says "a raft is necessary to reach
+		// this location" -- every other raft mention in the table says "recommended but not
+		// required", which the big boat can still reach, so isn't flagged.
+		assertEquals(SeaChartGearRequirement.REQUIRES_RAFT,
+			only(SeaChartTask.TASK_210.getGearRequirements())); // Grandroot Bay, current duck -- an ordinary (non-hazard) sea, so raft is its only requirement
+
+		// "Black Lobster" sits in Kannski Tides, one of the ten icy seas -- it genuinely needs
+		// BOTH a raft to reach it AND an eternal brazier for the icy water, which only shows up
+		// now that gear requirements are keyed by real sea rather than by task name (the name
+		// "Black Lobster" never matched any sea, so the old lookup only ever saw the raft tag).
+		assertEquals(SeaChartSea.KANNSKI_TIDES, SeaChartTask.TASK_261.getSea());
+		Set<SeaChartGearRequirement> blackLobster = SeaChartTask.TASK_261.getGearRequirements();
+		assertTrue(blackLobster.contains(SeaChartGearRequirement.REQUIRES_RAFT));
+		assertTrue(blackLobster.contains(SeaChartGearRequirement.ETERNAL_BRAZIER));
+		assertEquals(2, blackLobster.size());
+	}
+
+	@Test
+	public void raftRequirementIsPerTaskNotPerSea()
+	{
+		// "Grandroot Bay" is the name of four different tasks (one per type); only the Current
+		// duck one (TASK_210, checked above) actually needs a raft. An earlier version tagged
+		// REQUIRES_RAFT by sea name, which wrongly flagged all four.
+		assertTrue(SeaChartTask.TASK_221.getGearRequirements().isEmpty()); // Grandroot Bay, weather
+		assertTrue(SeaChartTask.TASK_229.getGearRequirements().isEmpty()); // Grandroot Bay, spyglass
+		assertTrue(SeaChartTask.TASK_242.getGearRequirements().isEmpty()); // Grandroot Bay, mermaid guide
+	}
+
+	@Test
+	public void tasksWithRaftOrSkiffNotesCarryThem()
+	{
+		// The two hard "necessary" tasks also have a gear requirement (see
+		// grandrootBayAndBlackLobsterRequireARaft above); this checks the note text itself, plus a
+		// "recommended but not required" task and the skiff-necessary one, which has no gear
+		// requirement filter of its own.
+		assertEquals("A raft is necessary to reach this location.",
+			SeaChartTask.TASK_210.getNote());
+		assertEquals("A raft is recommended but not required to reach this location.",
+			SeaChartTask.TASK_39.getNote());
+		assertEquals("A skiff is necessary to reach this location.",
+			SeaChartTask.TASK_170.getNote());
+	}
+
+	@Test
+	public void mostTasksHaveNoNote()
+	{
+		assertNull(SeaChartTask.TASK_0.getNote());
 	}
 
 	@Test

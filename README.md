@@ -24,11 +24,13 @@ requirements for. Two earlier Plugin Hub submissions covering similar ground
 
 | | quest-helper's `ChartingHelper` | This plugin |
 |---|---|---|
-| Per-sea progress | Plain text, no exact count | Numeric **"(x/y)"** counter per sea, live |
+| Per-sea progress | Plain text, no exact count | Numeric **"(x/y)"** counter for both the specific sea and its broader ocean, live, each independently toggleable |
 | Sort | Binary toggle: alphabetical or proximity | Weighted blend: proximity, but a sea's last 1-2 tasks get a bounded priority bump so you finish it before moving on (reasoning in `SeaChartTaskSorter`'s Javadoc); degrades to pure proximity for seas with lots left |
-| Gear hazards | Not covered | Filters for adamant keel/helm, eternal brazier, inoculation station, sourced from the OSRS Wiki's hazard-sea pages |
+| Gear hazards | Not covered | Filters for adamant keel/helm, eternal brazier, inoculation station, mast upgrade, and raft access — sourced directly from the wiki's own per-task hazard data, not a hub-page summary |
+| Sealed crate contents | Not covered | Hover a crate task for its actual in-game effect, colour-coded red if it's dangerous |
 | Routing | None | Optional [Shortest Path](https://github.com/Skretzo/shortest-path) integration: click a row (or a two-stage task auto-fires it) and it draws a route |
-| Two-stage tasks (Weather / Current duck) | Not specifically handled | Auto re-targets the route to the task's secondary location when the game reveals/starts it |
+| Two-stage tasks (Weather / Current duck) | Not specifically handled | Auto re-targets the route through every leg (troll → search area → back to troll for Weather; drop point → end point for Current duck) as the game reveals/starts each one |
+| Review completed tasks | Not shown | Optional "Show completed" toggle lists already-charted tasks alongside the active ones |
 | Overall progress | Not shown | "x/358" + a live percentage bar |
 
 The smart-sort weighting, gear filters, routing integration, and two-stage auto-retargeting aren't
@@ -47,28 +49,38 @@ quest-helper PR.
 - Type filter (Oddity / Spyglass / Sealed crate / Current duck / Diving / Weather checkboxes) and a
   "hide not-yet-reachable" toggle, persisted in config, for tasks whose level/quest gate you
   haven't cleared.
-- Dangerous-water gear filters: three toggles, persisted in config, for "Hide needs adamant
-  keel/helm+", "Hide needs eternal brazier", "Hide needs inoculation station". Some seas' hazards
-  (crystal-flecked/tangled-kelp waters, icy seas, fetid/disease waters) damage or slow an
-  unprepared boat unless it has the matching facility built; see "Known caveats" below for why
-  these are manual toggles rather than an automatic check. Any task with a known requirement shows
-  a "Needs: ..." line regardless of the filter state, so it's visible even with the filter off.
+- Dangerous-water gear filters: toggles for "Hide needs adamant keel/helm+", "Hide needs eternal
+  brazier", "Hide needs inoculation station", "Hide needs mast upgrade", and "Hide needs raft".
+  Some seas' hazards (crystal-flecked/tangled-kelp waters, icy seas, fetid/disease waters, stormy
+  seas) damage or slow an unprepared boat unless it has the matching facility built, and two tasks
+  are only physically reachable with a raft; see "Known caveats" below for why these are manual
+  toggles rather than an automatic check. Any task with a known requirement shows a "Needs: ..."
+  line regardless of the filter state, so it's visible even with the filter off.
+- Sealed crate tasks show an ⓘ icon on hover with the drink's real effect (colour-coded red if
+  it's actively harmful), and any task with a wiki note worth knowing (raft/skiff access, a quest
+  prerequisite, a low-level workaround) shows the same icon with that note.
+- Independent "sea completion" and "ocean completion" toggles: each row can show its specific
+  sea's count (e.g. "Shiverwake Expanse (2/5)") and/or its broader ocean's count (e.g. "Northern
+  Ocean (68/75)") — two different granularities, shown or hidden separately.
+- "Show completed" toggle: also lists already-charted tasks (marked with a checkmark) alongside
+  the active ones, for reviewing what you've finished without digging through a separate log.
 - Optional routing: clicking a task sends its location to the
   [Shortest Path](https://github.com/Skretzo/shortest-path) plugin, if installed, via its
   documented `PluginMessage` API. No compile-time dependency; if it's not installed, the message is
   never picked up.
 - Two-stage task auto re-target (Weather / Current duck): these task types move partway through.
-  Weather: after finding the calm wind spot, the game prints "...You should now return to &lt;NPC&gt;
-  where she gave you the weather station," and the target becomes the weather troll — the earliest
-  point that destination is known, since the game only reveals it there. Current duck: the
-  destination is static task data known from the start, so the plugin re-targets right away on
-  "You release your current duck and he begins tracking the currents..." rather than waiting for
-  arrival, since escorting the duck to its endpoint is optional
-  ([wiki](https://oldschool.runescape.wiki/w/Current_duck)). When either signal fires, the task is
-  marked stage-two: panel distance switches to the secondary location, the row gains a hint, and
-  the Shortest Path route re-targets automatically, same as clicking that row manually. An earlier
-  version only re-targeted if the task was already the clicked route target, which meant it almost
-  never fired in practice; fixed after live testing.
+  Weather is three-phase — troll (collect the station) → search area (find the calm wind spot) →
+  back to the troll (return it) — and the plugin re-targets on both legs: forward to the search
+  area the moment "The troll hands you a portable weather station" prints, then back to the troll
+  the moment "...You should now return to &lt;NPC&gt; where she gave you the weather station"
+  prints. Current duck is two-phase and stays put: the destination is static task data known from
+  the start, so the plugin re-targets right away on "You release your current duck and he begins
+  tracking the currents..." rather than waiting for arrival, since escorting the duck to its
+  endpoint is optional ([wiki](https://oldschool.runescape.wiki/w/Current_duck)). Each signal
+  re-targets the Shortest Path route automatically, same as clicking that row manually — fixed
+  after live testing turned up two real bugs: an earlier version only re-targeted if the task was
+  already the clicked route target (almost never true in practice), and a later version treated
+  Weather as two-phase and pointed the return leg at the search area instead of back at the troll.
 - The rendered list caps at the nearest 40 matching tasks — re-rendering hundreds of Swing rows
   every tick isn't worth it, and "what's my next task" only needs the nearby few.
 
@@ -87,17 +99,29 @@ quest-helper PR.
   Affairs, Sealed Crate → Prying Times, Diving → Recipe for Disaster: Pirate Pete, everything else
   → Pandemonium), checked against `QuestState.FINISHED` plus
   `client.getRealSkillLevel(Skill.SAILING)`.
-- **Gear requirement mapping:** `SeaChartGearRequirements` maps each task's sea to the boat
-  facility it needs, per the OSRS Wiki's hazard pages: Crystal-flecked waters (Porth Gwenith, Porth
-  Neigwl → adamant keel+), Tangled kelp (Rainbow Reef, Southern Expanse → adamant helm+), Icy seas
-  (Weiss Melt, Everwinter Sea, Stoneheart Sea, Weissmere, Winter's Edge, Shiverwake Expanse →
-  eternal brazier), Fetid waters (Backwater, Breakbone Strait, Mythic Sea, Sea of Souls, Zul-Egil →
-  inoculation station). Matched by task name, which is the literal sea name for every
-  Weather/Current Duck/Spyglass/Mermaid Guide task. Sealed-crate/Oddity tasks are usually named
-  after a flavour item instead (e.g. "Weiss Meltwater"), and the upstream table has no field
-  linking them back to a sea, so a handful sitting in an otherwise-hazardous sea may not be
-  individually flagged — treat an unflagged task as "not confirmed hazardous," not "confirmed
-  safe," the same caveat `SeaChartRegion` documents for ocean boundaries.
+- **Gear requirement mapping:** `SeaChartGearRequirements` maps each task's real sea
+  (`task.getSea()`) to the boat facility it needs, sourced directly from the wiki's own per-task
+  `hazard=` field (grouping all 358 rows by that tag, not a hub-page summary — see the class
+  Javadoc for why that distinction matters): Crystal-flecked waters (Piscatoris Sea, Porth Gwenith,
+  Porth Neigwl, Tirannwn Bight → adamant keel+), Tangled kelp (Rainbow Reef, Southern Expanse →
+  adamant helm+), Icy seas (10 seas → eternal brazier), Fetid waters (5 seas → inoculation
+  station), Stormy seas (Kharazi Strait, The Storm Tempor → mast upgrade). Keying by real sea
+  rather than task name means it applies to every task in a hazardous sea regardless of what that
+  specific task happens to be named — including one real case, task 107, a Weather task literally
+  named "Zul Egil" whose actual sea is Porth Neigwl (see the class Javadoc). Raft access is a
+  separate, genuinely per-task lookup (`SeaChartTaskNotes`-style, by task id) rather than per-sea,
+  since e.g. "Grandroot Bay" is the name of four different tasks and only one of them needs a
+  raft.
+- **Nearest teleport:** `SeaChartSea` carries a real, per-sea nearest-teleport hint (70 individual
+  seas, not 7 broad oceans), computed from each sea's actual wiki map coordinate against every
+  standard teleport (spellbooks, jewelry, diary/quest items, fairy rings), excluding the two
+  sailing-locked "Teleport to Boat" options since those only work once you already have a boat.
+- **Per-task notes:** `SeaChartTaskNotes` surfaces the handful of tasks with a wiki annotation
+  worth knowing (a raft/skiff being merely recommended vs. genuinely necessary, a quest-completion
+  prerequisite, a low-level access workaround), shown in the same ⓘ tooltip as the crate effects.
+- **Sealed crate effects:** `SeaChartCrateEffects` maps each of the 65 named Sealed-crate drinks to
+  its real in-game effect (59 documented, 6 with no wiki page and left undocumented rather than
+  guessed), shown on hover and colour-coded red if the effect is actively harmful.
 
 ### Credit
 
@@ -112,20 +136,22 @@ only vendors a fresh copy of the data table as its own enum.
 ### Known caveats
 
 - The panel checks Sailing level and quest state, but can't verify you physically have the boat
-  upgrades (keel/helm/brazier/inoculation station) needed to survive far oceans — RuneLite's client
-  API has no "does my boat have an eternal brazier" getter, the same limitation Quest Helper has
-  with F2P/members gates it can't detect. That's why the three gear filters are manual toggles
-  rather than an automatic eligibility check like "hide not-yet-reachable": the plugin can't know
-  your boat's loadout.
-- The gear-requirement mapping is name-based and not exhaustive for Sealed-crate/Oddity tasks; see
-  `SeaChartGearRequirements`'s Javadoc.
-- Raft/skiff vs. big-boat access is not implemented; it isn't really a per-task mechanic. Sailing
-  does have three boat hull sizes (raft/skiff/sloop) with a real maneuverability difference (a
-  sloop can't fit through some narrow channels a raft/skiff can), which matters for general Sailing
-  content like Barracuda Trial couriers squeezing through rapids. But scanning the full 358-row
-  sea-charting task table for any raft/skiff mention turned up exactly one task with a note, and it
-  reads "a raft is recommended but not required to reach this location" — not a real per-task hard
-  requirement, so this plugin doesn't invent a filter for it.
+  upgrades (keel/helm/brazier/inoculation station/mast) needed to survive far oceans — RuneLite's
+  client API has no "does my boat have an eternal brazier" getter, the same limitation Quest Helper
+  has with F2P/members gates it can't detect. That's why the gear filters are manual toggles rather
+  than an automatic eligibility check like "hide not-yet-reachable": the plugin can't know your
+  boat's loadout.
+- Sea-hazard gear requirements (keel/helm, brazier, inoculation station, mast) are keyed by each
+  task's actual sea (`SeaChartTask#getSea()`), not its name, so they apply exhaustively regardless
+  of whether a task happens to be named after its sea or after a flavour item; see
+  `SeaChartGearRequirements`'s Javadoc for the one real task this fix corrected.
+- Raft access: two tasks — Grandroot Bay (Current duck) and the "Black Lobster" Sealed crate —
+  have a hard "a raft is necessary to reach this location" note in their own wiki description and
+  are flagged with a "Requires raft" filter. This is looked up per task, not per sea, since
+  "Grandroot Bay" is also the name of three other tasks (Weather/Spyglass/Mermaid guide) that don't
+  need one. Four other tasks mention a raft too, but only as "a raft is recommended but not
+  required" (or "a raft or skiff") — informational, not a real requirement, since the big boat can
+  still get there, so those aren't flagged.
 
 ## Building
 

@@ -28,8 +28,11 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The named sea-charting oceans, purely so each task can point at the closest port with a
- * reasonably direct teleport -- not just its raw tile distance.
+ * The 7 named sea-charting oceans -- the broad grouping {@link SeaChartSea} (the ~70 real,
+ * individually-named seas) rolls up into. Used for the panel's optional "ocean completion" line;
+ * the per-task "nearest teleport" hint now lives on {@link SeaChartSea} instead, since a single
+ * per-ocean port was too coarse to be a genuinely close recommendation (an ocean can span a dozen
+ * or more distinct seas).
  *
  * <p><b>Sourced directly from the OSRS Wiki's "Sea charting" page</b> (the {@code {{SeaChartRow}}}
  * template instances backing its "All tasks" table), which tags every one of the 358 tasks with an
@@ -50,12 +53,12 @@ import lombok.RequiredArgsConstructor;
  * to Ardent Ocean's other Kharidian Sea tasks), and no {@code sea} name is ever used by both a
  * "Bonus charts" task and a task in a different real ocean. So {@link #forTaskId} resolves every
  * task's real geographic ocean via its {@code sea}, folding "Bonus charts" tasks into whichever
- * ocean their sea actually sits in -- giving every task a genuinely nearby port hint instead of a
+ * ocean their sea actually sits in -- giving every task a genuinely correct ocean instead of a
  * one-size-fits-all "Miscellaneous" bucket.
  *
- * <p>The Western Ocean's 13 seas split into two geographically distinct clusters with different
- * best ports, so it's represented here as two enum constants ({@link #WESTERN_KOUREND} and
- * {@link #WESTERN_TIRANNWN}) sharing the same display label: the Great Kourend / Land's End /
+ * <p>The Western Ocean's 13 seas split into two geographically distinct clusters (different real
+ * locations on the map), so it's represented here as two enum constants ({@link #WESTERN_KOUREND}
+ * and {@link #WESTERN_TIRANNWN}) sharing the same display label: the Great Kourend / Land's End /
  * Hosidius side (Great Sound, Crabclaw Bay, Gulf of Kourend, Hosidian Sea, Pilgrims' Passage,
  * Crystal Sea, Litus Lucis, Moonshadow, Vagabonds Rest), and the Tirannwn / Piscatoris side (Porth
  * Neigwl, Tirannwn Bight, Porth Gwenith, Piscatoris Sea).
@@ -73,17 +76,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 enum SeaChartRegion
 {
-	ARDENT("Ardent Ocean", "The Pandemonium (bank + shipwright)"),
-	UNQUIET("Unquiet Ocean", "Dognose Island"),
-	SHROUDED("Shrouded Ocean", "Deepfin Point (shipwright, bank)"),
-	SUNSET("Sunset Ocean", "Aldarin tele (or Sunset Coast)"),
-	WESTERN_KOUREND("Western Ocean", "Kourend Castle tele (or Xeric's talisman) -> Land's End dock (or Hosidius)"),
-	WESTERN_TIRANNWN("Western Ocean", "Port Tyras tele (or Prifddinas) -> Piscatoris/Tirannwn coast"),
-	NORTHERN("Northern Ocean", "Rellekka (full facilities)"),
+	ARDENT("Ardent Ocean"),
+	UNQUIET("Unquiet Ocean"),
+	SHROUDED("Shrouded Ocean"),
+	SUNSET("Sunset Ocean"),
+	WESTERN_KOUREND("Western Ocean"),
+	WESTERN_TIRANNWN("Western Ocean"),
+	NORTHERN("Northern Ocean"),
 	;
 
 	private final String label;
-	private final String nearestPort;
 
 	/**
 	 * Maps a task's stable {@link SeaChartTask#getTaskId()} (0-357) to its real ocean/region, per

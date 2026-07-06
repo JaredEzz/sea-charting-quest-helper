@@ -110,7 +110,7 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		panel.setCallbacks(this::onPanelToggle, this::onTaskClicked);
 		panel.setGearHideCallback(this::onGearHideToggle);
 		panel.initOptions(config.hideNotYetReachable(), config.showSeaCompletion(),
-			config.smartSort(), config.showNearestPort());
+			config.showOceanCompletion(), config.showCompleted(), config.smartSort(), config.showNearestPort());
 		panel.initGearFilters(initiallyHiddenGearRequirements());
 
 		final Map<SeaChartTaskType, BufferedImage> icons = new EnumMap<>(SeaChartTaskType.class);
@@ -312,28 +312,30 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 			return;
 		}
 
-		List<SeaChartTaskRow> rows = new ArrayList<>(SeaChartTask.values().length - completed.size());
+		// Built for ALL tasks, completed or not -- the panel decides whether to actually show
+		// completed rows (its "Show completed" toggle), same as it already decides on type/gear/
+		// eligibility filters. Keeping that a display-only concern here means the completed set
+		// stays the single source of truth without a second code path re-deriving it.
+		List<SeaChartTaskRow> rows = new ArrayList<>(SeaChartTask.values().length);
 		for (SeaChartTask task : SeaChartTask.values())
 		{
-			if (completed.contains(task))
-			{
-				continue;
-			}
 			// Two-stage tasks (Weather / Current duck) measure to their secondary location once
 			// their stage-two signal has fired, keeping the shown distance consistent with where
 			// the route actually points.
 			int distance = playerLocation.distanceTo2D(twoStageTracker.effectiveLocation(task));
 			boolean eligible = SeaChartRequirements.meetsRequirement(client, task);
-			rows.add(new SeaChartTaskRow(task, distance, eligible, twoStageTracker.isStageTwo(task)));
+			rows.add(new SeaChartTaskRow(task, distance, eligible, twoStageTracker.isStageTwo(task),
+				completed.contains(task)));
 		}
 
-		// Per-sea completion counts feed both the panel's "(x/y)" markers and the smart sort's
-		// remaining-in-sea weighting; `completed` is kept live by onVarbitChanged, so these
-		// advance the moment a task is charted.
+		// Per-sea and per-ocean completion counts feed the panel's two independent "(x/y)"
+		// markers and the smart sort's remaining-in-sea weighting; `completed` is kept live by
+		// onVarbitChanged, so these advance the moment a task is charted.
+		final Map<SeaChartSea, SeaChartSeaProgress> seaProgress = SeaChartSeaProgress.compute(completed);
 		final Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = SeaChartRegionProgress.compute(completed);
 		if (config.smartSort())
 		{
-			SeaChartTaskSorter.sort(rows, regionProgress);
+			SeaChartTaskSorter.sort(rows, seaProgress);
 		}
 		else
 		{
@@ -346,7 +348,7 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		{
 			if (panel != null)
 			{
-				panel.setRows(rows, regionProgress, overallComplete, overallTotal);
+				panel.setRows(rows, seaProgress, regionProgress, overallComplete, overallTotal);
 			}
 		});
 	}
@@ -372,6 +374,14 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		{
 			hidden.add(SeaChartGearRequirement.INOCULATION_STATION);
 		}
+		if (config.hideNeedsMastUpgrade())
+		{
+			hidden.add(SeaChartGearRequirement.MAST_UPGRADE);
+		}
+		if (config.hideNeedsRaft())
+		{
+			hidden.add(SeaChartGearRequirement.REQUIRES_RAFT);
+		}
 		return hidden;
 	}
 
@@ -388,6 +398,12 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 				break;
 			case INOCULATION_STATION:
 				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_INOCULATION_STATION;
+				break;
+			case MAST_UPGRADE:
+				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_MAST_UPGRADE;
+				break;
+			case REQUIRES_RAFT:
+				keyName = SeaChartingQuestHelperConfig.KEY_HIDE_NEEDS_RAFT;
 				break;
 			default:
 				throw new IllegalArgumentException("Unhandled gear requirement: " + requirement);

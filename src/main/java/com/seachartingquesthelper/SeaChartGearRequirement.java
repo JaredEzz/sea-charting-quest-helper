@@ -44,16 +44,37 @@ import lombok.RequiredArgsConstructor;
 public enum SeaChartGearRequirement
 {
 	/**
-	 * Crystal-flecked waters (Porth Gwenith, Porth Neigwl) and tangled kelp (Rainbow Reef,
-	 * Southern Expanse) both damage/slow an unprepared boat unless it has at least an adamant-tier
-	 * keel or helm respectively -- grouped as one requirement since both gate on the same boat-part
-	 * tier and the player asked for a single filter covering "dangerous water needing adamant gear".
+	 * Crystal-flecked waters (Piscatoris Sea, Porth Gwenith, Porth Neigwl, Tirannwn Bight) and
+	 * tangled kelp (Rainbow Reef, Southern Expanse) both damage/slow an unprepared boat unless it
+	 * has at least an adamant-tier keel or helm respectively -- grouped as one requirement since
+	 * both gate on the same boat-part tier and the player asked for a single filter covering
+	 * "dangerous water needing adamant gear".
 	 */
 	ADAMANT_KEEL_OR_HELM("Adamant keel/helm+"),
-	/** Icy seas (Weiss Melt, Everwinter Sea, Stoneheart Sea, Weissmere, Winter's Edge, Shiverwake Expanse) freeze crew/damage the ship without one. */
+	/**
+	 * Icy seas (Everwinter Sea, Idestia Strait, Kannski Tides, Lunar Sea, Shiverwake Expanse,
+	 * Stoneheart Sea, V's Belt, Weiss Melt, Weissmere, Winter's Edge) freeze crew/damage the ship
+	 * without one.
+	 */
 	ETERNAL_BRAZIER("Eternal brazier"),
 	/** Fetid, disease-inducing waters (Backwater, Breakbone Strait, Mythic Sea, Sea of Souls, Zul-Egil) damage/slow the boat without one. */
 	INOCULATION_STATION("Inoculation station"),
+	/**
+	 * Stormy seas (Kharazi Strait, The Storm Tempor) need a boat mast upgrade for storm
+	 * resistance: Oak/Teak/Mahogany masts reduce lightning-cloud damage and slow, Camphor/
+	 * Ironwood/Rosewood masts prevent it entirely. A single "has some mast upgrade" filter,
+	 * matching this plugin's existing one-filter-per-hazard-category convention.
+	 */
+	MAST_UPGRADE("Mast upgrade (Oak+)"),
+	/**
+	 * A hard access requirement, not a boat-facility one: the task's own wiki description says
+	 * "a raft is necessary to reach this location" (as opposed to the far more common "a raft is
+	 * recommended but not required", which every other raft-mentioning task in the 358-row table
+	 * uses and which this plugin does not flag, since the big boat can still reach those). Exactly
+	 * two tasks in the whole table hit the hard "necessary" wording: Grandroot Bay (Current duck)
+	 * and the "Black Lobster" Sealed crate.
+	 */
+	REQUIRES_RAFT("Requires raft"),
 	;
 
 	private final String label;

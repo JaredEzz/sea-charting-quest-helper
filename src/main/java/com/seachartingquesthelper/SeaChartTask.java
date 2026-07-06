@@ -424,13 +424,33 @@ public enum SeaChartTask
 	}
 
 	/**
-	 * Special boat facility/facilities this task's sea is confirmed to require (adamant keel/helm,
-	 * eternal brazier, inoculation station), or an empty set if none are confirmed -- see
-	 * {@link SeaChartGearRequirements} for sourcing and the best-effort caveat.
+	 * The specific, individually-named sea this task is in (one level more granular than {@link
+	 * #getRegion()}) -- see {@link SeaChartSea} for sourcing.
+	 */
+	public SeaChartSea getSea()
+	{
+		return SeaChartSea.forTaskId(taskId);
+	}
+
+	/**
+	 * Special boat facility this task's sea requires (adamant keel/helm, eternal brazier,
+	 * inoculation station, mast upgrade), plus a raft if this specific task is one of the two that
+	 * needs one, or an empty set if none apply -- see {@link SeaChartGearRequirements} for
+	 * sourcing.
 	 */
 	public Set<SeaChartGearRequirement> getGearRequirements()
 	{
-		return SeaChartGearRequirements.forTaskName(taskName);
+		return SeaChartGearRequirements.forTask(this);
+	}
+
+	/**
+	 * A per-task informational aside from the task's own wiki row (e.g. "a raft is recommended
+	 * but not required"), or {@code null} if it doesn't have one -- see {@link SeaChartTaskNotes}
+	 * for sourcing.
+	 */
+	public String getNote()
+	{
+		return SeaChartTaskNotes.forTaskId(taskId);
 	}
 
 	/**

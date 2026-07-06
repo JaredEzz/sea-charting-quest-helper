@@ -70,6 +70,8 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	private final JPanel listSection = new JPanel();
 	private final JCheckBox hideNotReachableBox;
 	private final JCheckBox seaCompletionBox;
+	private final JCheckBox oceanCompletionBox;
+	private final JCheckBox showCompletedBox;
 	private final JCheckBox smartSortBox;
 	private final JCheckBox nearestPortBox;
 	private final Map<SeaChartTaskType, JCheckBox> typeBoxes = new EnumMap<>(SeaChartTaskType.class);
@@ -79,11 +81,14 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 	private Map<SeaChartTaskType, BufferedImage> icons = Collections.emptyMap();
 	private List<SeaChartTaskRow> rows = Collections.emptyList();
+	private Map<SeaChartSea, SeaChartSeaProgress> seaProgress = Collections.emptyMap();
 	private Map<SeaChartRegion, SeaChartRegionProgress> regionProgress = Collections.emptyMap();
 	private int overallComplete;
 	private int overallTotal;
 	private boolean hideNotReachable = false;
 	private boolean showSeaCompletion = true;
+	private boolean showOceanCompletion = true;
+	private boolean showCompleted = false;
 	private boolean smartSort = true;
 	private boolean showNearestPort = true;
 
@@ -187,6 +192,10 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		hideNotReachableBox.setBorder(new EmptyBorder(4, 0, 0, 0));
 		seaCompletionBox = buildToggle("Show sea completion",
 			SeaChartingQuestHelperConfig.KEY_SHOW_SEA_COMPLETION, v -> showSeaCompletion = v);
+		oceanCompletionBox = buildToggle("Show ocean completion",
+			SeaChartingQuestHelperConfig.KEY_SHOW_OCEAN_COMPLETION, v -> showOceanCompletion = v);
+		showCompletedBox = buildToggle("Show completed",
+			SeaChartingQuestHelperConfig.KEY_SHOW_COMPLETED, v -> showCompleted = v);
 		smartSortBox = buildToggle("Prioritise nearly-done seas",
 			SeaChartingQuestHelperConfig.KEY_SMART_SORT, v -> smartSort = v);
 		nearestPortBox = buildToggle("Show nearest port hint",
@@ -239,6 +248,8 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		content.add(otherLabel);
 		content.add(hideNotReachableBox);
 		content.add(seaCompletionBox);
+		content.add(oceanCompletionBox);
+		content.add(showCompletedBox);
 		content.add(smartSortBox);
 		content.add(nearestPortBox);
 		content.add(gearFilterLabel);
@@ -278,14 +289,19 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	}
 
 	/** Seeds all option toggles from persisted config, without firing the persist callback. */
-	void initOptions(boolean hideNotReachable, boolean showSeaCompletion, boolean smartSort, boolean showNearestPort)
+	void initOptions(boolean hideNotReachable, boolean showSeaCompletion, boolean showOceanCompletion,
+		boolean showCompleted, boolean smartSort, boolean showNearestPort)
 	{
 		this.hideNotReachable = hideNotReachable;
 		this.showSeaCompletion = showSeaCompletion;
+		this.showOceanCompletion = showOceanCompletion;
+		this.showCompleted = showCompleted;
 		this.smartSort = smartSort;
 		this.showNearestPort = showNearestPort;
 		hideNotReachableBox.setSelected(hideNotReachable);
 		seaCompletionBox.setSelected(showSeaCompletion);
+		oceanCompletionBox.setSelected(showOceanCompletion);
+		showCompletedBox.setSelected(showCompleted);
 		smartSortBox.setSelected(smartSort);
 		nearestPortBox.setSelected(showNearestPort);
 		rebuildList();
@@ -310,14 +326,16 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 	}
 
 	/**
-	 * Full, sorted set of remaining tasks for this tick (smart or nearest-first order, decided by
-	 * the plugin), plus the live per-sea and overall completion counts backing the "(x/y)"
-	 * markers and the progress bar.
+	 * Full, sorted set of all tasks for this tick (smart or nearest-first order, decided by the
+	 * plugin; completed ones included, filtered by "Show completed" at render time), plus the
+	 * live per-sea, per-ocean, and overall completion counts backing the two "(x/y)" markers and
+	 * the progress bar.
 	 */
-	void setRows(List<SeaChartTaskRow> rows, Map<SeaChartRegion, SeaChartRegionProgress> regionProgress,
-		int overallComplete, int overallTotal)
+	void setRows(List<SeaChartTaskRow> rows, Map<SeaChartSea, SeaChartSeaProgress> seaProgress,
+		Map<SeaChartRegion, SeaChartRegionProgress> regionProgress, int overallComplete, int overallTotal)
 	{
 		this.rows = rows == null ? Collections.emptyList() : rows;
+		this.seaProgress = seaProgress == null ? Collections.emptyMap() : seaProgress;
 		this.regionProgress = regionProgress == null ? Collections.emptyMap() : regionProgress;
 		this.overallComplete = overallComplete;
 		this.overallTotal = overallTotal;
@@ -338,6 +356,10 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		List<SeaChartTaskRow> filtered = new ArrayList<>();
 		for (SeaChartTaskRow row : rows)
 		{
+			if (row.isCompleted())
+			{
+				continue;
+			}
 			if (!visibleTypes.contains(row.getTask().getType()))
 			{
 				continue;
@@ -357,38 +379,78 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			}
 		}
 
+		// Completed rows are appended after the incomplete ones (when the toggle is on) purely for
+		// review -- they use their sea/ocean's real, current counts directly (see buildRow),
+		// never the incomplete list's projected-count pass below, so mixing them in wouldn't
+		// double-count against the baseline that pass already seeds from the real complete count.
+		List<SeaChartTaskRow> completedRows = new ArrayList<>();
+		if (showCompleted)
+		{
+			for (SeaChartTaskRow row : rows)
+			{
+				if (!row.isCompleted())
+				{
+					continue;
+				}
+				if (!visibleTypes.contains(row.getTask().getType()))
+				{
+					continue;
+				}
+				if (!hiddenGearRequirements.isEmpty() && !Collections.disjoint(hiddenGearRequirements, row.getTask().getGearRequirements()))
+				{
+					continue;
+				}
+				completedRows.add(row);
+				if (completedRows.size() >= MAX_ROWS)
+				{
+					break;
+				}
+			}
+		}
+
 		if (rows.isEmpty())
 		{
 			statusLabel.setText("Log in and open this panel near the sea to populate tasks.");
 		}
-		else if (filtered.isEmpty())
+		else if (filtered.isEmpty() && completedRows.isEmpty())
 		{
 			statusLabel.setText("No tasks match the current filters.");
 		}
 		else
 		{
 			statusLabel.setText(filtered.size() + " shown, "
-				+ (smartSort ? "nearly-done seas first" : "nearest first"));
+				+ (smartSort ? "nearly-done seas first" : "nearest first")
+				+ (completedRows.isEmpty() ? "" : " (+" + completedRows.size() + " completed)"));
 		}
 
-		// Display-only post-sort pass: turns the static real per-sea complete count into a
-		// projected running count based on each row's position in this exact filtered/sorted
-		// list (see SeaChartRegionProgress.projectedCompleteCounts). Never fed back into the
-		// sort itself.
-		List<Integer> projectedCompletes = SeaChartRegionProgress.projectedCompleteCounts(filtered, regionProgress);
+		// Display-only post-sort pass: turns the static real per-sea/per-ocean complete count into
+		// a projected running count based on each row's position in this exact filtered/sorted
+		// list (see SeaChartSeaProgress/SeaChartRegionProgress#projectedCompleteCounts). Never fed
+		// back into the sort itself. Only run over the incomplete rows -- see the completedRows
+		// comment above for why.
+		List<Integer> projectedSeaCompletes = SeaChartSeaProgress.projectedCompleteCounts(filtered, seaProgress);
+		List<Integer> projectedOceanCompletes = SeaChartRegionProgress.projectedCompleteCounts(filtered, regionProgress);
 		for (int i = 0; i < filtered.size(); i++)
 		{
-			listSection.add(buildRow(filtered.get(i), projectedCompletes.get(i)));
+			listSection.add(buildRow(filtered.get(i), projectedSeaCompletes.get(i), projectedOceanCompletes.get(i)));
+		}
+
+		for (SeaChartTaskRow row : completedRows)
+		{
+			SeaChartSeaProgress sp = seaProgress.get(row.getTask().getSea());
+			SeaChartRegionProgress rp = regionProgress.get(row.getTask().getRegion());
+			listSection.add(buildRow(row, sp == null ? 0 : sp.getComplete(), rp == null ? 0 : rp.getComplete()));
 		}
 
 		revalidate();
 		repaint();
 	}
 
-	private JPanel buildRow(SeaChartTaskRow row, int projectedRegionComplete)
+	private JPanel buildRow(SeaChartTaskRow row, int projectedSeaComplete, int projectedOceanComplete)
 	{
 		SeaChartTask task = row.getTask();
 		boolean eligible = row.isEligible();
+		boolean completed = row.isCompleted();
 
 		JPanel panel = new JPanel(new BorderLayout(6, 0));
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -407,18 +469,28 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 		textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 		textPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		JLabel nameLabel = new JLabel(task.getTaskName());
+		JLabel nameLabel = new JLabel(completed ? "✓ " + task.getTaskName() : task.getTaskName());
 		nameLabel.setFont(FontManager.getRunescapeSmallFont());
-		nameLabel.setForeground(eligible ? Color.WHITE : ColorScheme.LIGHT_GRAY_COLOR);
+		nameLabel.setForeground(completed ? ColorScheme.PROGRESS_COMPLETE_COLOR
+			: eligible ? Color.WHITE : ColorScheme.LIGHT_GRAY_COLOR);
 
-		String detail = row.getDistance() + " tiles · " + task.getType().getLabel();
-		if (!eligible)
+		String detail;
+		if (completed)
 		{
-			detail += " · Requires " + task.getLevel() + " Sailing";
+			detail = "Charted · " + task.getType().getLabel();
+		}
+		else
+		{
+			detail = row.getDistance() + " tiles · " + task.getType().getLabel();
+			if (!eligible)
+			{
+				detail += " · Requires " + task.getLevel() + " Sailing";
+			}
 		}
 		JLabel detailLabel = new JLabel(detail);
 		detailLabel.setFont(FontManager.getRunescapeSmallFont());
-		detailLabel.setForeground(eligible ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
+		detailLabel.setForeground(completed ? ColorScheme.LIGHT_GRAY_COLOR
+			: eligible ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 
 		textPanel.add(nameLabel);
 		textPanel.add(detailLabel);
@@ -437,11 +509,25 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		if (showSeaCompletion)
 		{
+			String seaText = task.getSea().getLabel();
+			SeaChartSeaProgress sProgress = seaProgress.get(task.getSea());
+			if (sProgress != null)
+			{
+				seaText += " (" + projectedSeaComplete + "/" + sProgress.getTotal() + ")";
+			}
+			JLabel seaLabel = new JLabel(seaText);
+			seaLabel.setFont(FontManager.getRunescapeSmallFont());
+			seaLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			textPanel.add(seaLabel);
+		}
+
+		if (showOceanCompletion)
+		{
 			String regionText = task.getRegion().getLabel();
 			SeaChartRegionProgress progress = regionProgress.get(task.getRegion());
 			if (progress != null)
 			{
-				regionText += " (" + projectedRegionComplete + "/" + progress.getTotal() + ")";
+				regionText += " (" + projectedOceanComplete + "/" + progress.getTotal() + ")";
 			}
 			JLabel regionLabel = new JLabel(regionText);
 			regionLabel.setFont(FontManager.getRunescapeSmallFont());
@@ -451,7 +537,7 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 
 		if (showNearestPort)
 		{
-			JLabel portLabel = new JLabel("Nearest: " + task.getRegion().getNearestPort());
+			JLabel portLabel = new JLabel("Nearest: " + task.getSea().getNearestPort());
 			portLabel.setFont(FontManager.getRunescapeSmallFont());
 			portLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 			textPanel.add(portLabel);
@@ -493,13 +579,33 @@ class SeaChartingQuestHelperPanel extends PluginPanel
 			}
 		};
 
+		// One shared ⓘ icon for both the crate-effect and per-task note info, so a Sealed crate
+		// task with both (e.g. "Black Lobster", which is both raft-necessary and a dangerous
+		// drink) doesn't need two competing EAST-slot components.
 		SeaChartCrateEffect crateEffect = task.getCrateEffect();
-		if (crateEffect != null)
+		String note = task.getNote();
+		if (crateEffect != null || note != null)
 		{
+			StringBuilder tooltip = new StringBuilder("<html><body style='width:200px'>");
+			if (crateEffect != null)
+			{
+				tooltip.append(crateEffect.getDescription());
+			}
+			if (note != null)
+			{
+				if (crateEffect != null)
+				{
+					tooltip.append("<br><br>");
+				}
+				tooltip.append(note);
+			}
+			tooltip.append("</body></html>");
+
 			JLabel infoLabel = new JLabel("ⓘ");
 			infoLabel.setFont(infoLabel.getFont().deriveFont(14f));
-			infoLabel.setForeground(crateEffect.isDangerous() ? ColorScheme.PROGRESS_ERROR_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
-			infoLabel.setToolTipText("<html><body style='width:200px'>" + crateEffect.getDescription() + "</body></html>");
+			infoLabel.setForeground(crateEffect != null && crateEffect.isDangerous()
+				? ColorScheme.PROGRESS_ERROR_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+			infoLabel.setToolTipText(tooltip.toString());
 			infoLabel.setVerticalAlignment(SwingConstants.TOP);
 			infoLabel.setBorder(new EmptyBorder(2, 4, 0, 0));
 			infoLabel.addMouseListener(routeClickListener);

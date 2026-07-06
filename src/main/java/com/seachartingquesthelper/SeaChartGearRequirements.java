@@ -25,43 +25,65 @@
 package com.seachartingquesthelper;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Maps a sea-chart task to the special boat facility/facilities its sea requires, per the OSRS
- * Wiki's per-sea hazard pages.
+ * Maps a sea-chart task to the special boat facility/facilities its sea requires.
  *
- * <p><b>Best-effort, name-based, not exhaustive.</b> The upstream task table (see {@link
- * SeaChartTask}) has no per-task hazard/gear field, so this maps by matching each task's {@code
- * taskName} against the wiki's confirmed hazard sea names below. That name literally <em>is</em>
- * the sea name for every Weather / Current Duck / Spyglass / Mermaid Guide task -- the vast
- * majority of geographically-anchored tasks -- so this covers those directly and exhaustively
- * (verified by cross-referencing every matching task in {@code SeaChartTask} against the wiki's
- * location lists below). Generic and Sealed-crate ("drink crate") tasks are usually named after a
- * flavour item instead (e.g. "Weiss Meltwater", "Crystal Water") rather than their sea, and the
- * upstream table has no field linking them back to a sea, so a handful of those sitting in an
- * otherwise-hazardous sea may not be individually flagged here. This is the same class of
- * approximation {@link SeaChartRegion} documents for ocean boundaries -- treat a task with no
- * flagged requirement as "not confirmed hazardous", not "confirmed safe".
+ * <p><b>Keyed by {@link SeaChartSea}, not task name.</b> An earlier version matched by {@code
+ * taskName} instead, on the assumption that a task's name always equals its real sea for
+ * Weather/Current Duck/Spyglass/Mermaid Guide tasks -- true for the vast majority, but not
+ * universal: task 107 is a Weather task literally named "Zul Egil" whose real sea (per the wiki's
+ * own {@code sea=} tag) is actually Porth Neigwl, so name-matching flagged it with the wrong
+ * hazard (inoculation station instead of adamant keel/helm). Keying by {@link SeaChartSea} --
+ * already independently cross-checked against {@link SeaChartTask#getRegion()} for all 358 tasks
+ * -- fixes that task and, as a side effect, now also covers every Generic/Sealed-crate task with a
+ * known sea (previously "not confirmed hazardous" simply because those types are usually named
+ * after a flavour item rather than their sea, e.g. "Weiss Meltwater").
  *
- * <p>Sources (OSRS Wiki, 2026):
+ * <p>Sourced directly from the OSRS Wiki's "Sea charting" page's own per-task {@code
+ * {{SeaChartRow}}} template data (the same 358-row table {@link SeaChartRegion}/{@link
+ * SeaChartSea} use), which carries an explicit {@code hazard=} field per task. Grouping the raw
+ * table's 358 rows by their {@code hazard=} value and then by {@code sea=} gives the exhaustive,
+ * authoritative list below -- not derived from any hub page's prose (an earlier version did that
+ * and, as a result, missed an entire hazard category, "Stormy seas", and two of four
+ * Crystal-flecked-waters seas, Piscatoris Sea and Tirannwn Bight, that the individual hub pages
+ * didn't make obvious).
+ *
+ * <p>The full authoritative breakdown, straight from the wiki's own {@code hazard=} tags (358
+ * tasks total; 262 have no hazard tag at all):
  * <ul>
- * <li>"Crystal-flecked waters" -- Porth Gwenith, Porth Neigwl. Requires an adamant keel or better;
- * unprepared boats are slowed and dealt 20 damage.
- * <li>"Tangled kelp" -- near the Isle of Serpents / Sunbleak Island, i.e. this plugin's Rainbow
- * Reef and Southern Expanse chart tasks (both level-72-gated, matching Sunbleak Island's level-72
- * mooring requirement). Requires an adamant helm or better.
- * <li>"Icy seas" -- Weiss Melt, Everwinter Sea, Stoneheart Sea, Weissmere, Winter's Edge,
- * Shiverwake Expanse, Idestia Strait, Lunar Sea, Kannski Tides, V's Belt (all ten seas the wiki's
- * dedicated "Icy seas" page lists, confirmed against the Northern Ocean's full sea list -- an
- * earlier version of this class only had the first six). Requires an eternal brazier; otherwise
- * crew freeze and the ship takes increasing damage over time.
- * <li>"Fetid waters" -- Backwater, Breakbone Strait, Mythic Sea, Sea of Souls, Zul-Egil. Requires
- * an inoculation station; otherwise disease plus 5 damage per tick and a severe speed penalty.
+ * <li>{@code hazard=Crystal-flecked waters} (4 seas) -- Piscatoris Sea, Porth Gwenith, Porth
+ * Neigwl, Tirannwn Bight. Requires an adamant keel or better; unprepared boats are slowed and dealt
+ * 20 damage.
+ * <li>{@code hazard=Tangled kelp} (2 seas) -- Rainbow Reef, Southern Expanse (both level-72-gated,
+ * matching Sunbleak Island's level-72 mooring requirement). Requires an adamant helm or better.
+ * <li>{@code hazard=Icy seas} (10 seas) -- Everwinter Sea, Idestia Strait, Kannski Tides, Lunar
+ * Sea, Shiverwake Expanse, Stoneheart Sea, V's Belt, Weiss Melt, Weissmere, Winter's Edge. Requires
+ * an eternal brazier; otherwise crew freeze and the ship takes increasing damage over time.
+ * <li>{@code hazard=Fetid waters} (5 seas) -- Backwater, Breakbone Strait, Mythic Sea, Sea of
+ * Souls, Zul-Egil. Requires an inoculation station; otherwise disease plus 5 damage per tick and a
+ * severe speed penalty.
+ * <li>{@code hazard=Stormy seas} (2 seas) -- Kharazi Strait, The Storm Tempor. Requires a boat mast
+ * upgrade for storm resistance (Oak/Teak/Mahogany reduce lightning-cloud damage and slow;
+ * Camphor/Ironwood/Rosewood prevent it entirely).
  * </ul>
+ *
+ * <p><b>Raft access is genuinely per-task, not per-sea</b>, so it's kept separate from the
+ * sea-keyed map above and looked up by {@link SeaChartTask#getTaskId()} instead -- tagging it by
+ * sea would have over-flagged, since e.g. "Grandroot Bay" is the name of four different tasks
+ * (Current duck, Weather, Spyglass, Mermaid guide all in that sea) and only the Current duck one
+ * actually needs a raft. Sourced from each task's own wiki description text (not a structured
+ * field): scanning all 358 descriptions for "raft" finds 6 real hits (a 7th, task 21's "Crafting
+ * Guild", is a substring false-positive) -- 4 read "a raft is recommended but not required to
+ * reach this location" (or "a raft or skiff"), informational since the big boat can still get
+ * there, so those aren't flagged. Only 2 use the harder "a raft is necessary to reach this
+ * location" wording: task 210 (Grandroot Bay, Current duck) and task 261 ("Black Lobster", Sealed
+ * crate). Those two are tagged {@link SeaChartGearRequirement#REQUIRES_RAFT}.
  */
 final class SeaChartGearRequirements
 {
@@ -69,32 +91,50 @@ final class SeaChartGearRequirements
 	{
 	}
 
-	private static final Map<String, Set<SeaChartGearRequirement>> BY_SEA_NAME = build();
+	private static final Map<SeaChartSea, Set<SeaChartGearRequirement>> BY_SEA = build();
+	private static final Set<Integer> RAFT_REQUIRED_TASK_IDS = new HashSet<>(java.util.Arrays.asList(210, 261));
 
-	private static Map<String, Set<SeaChartGearRequirement>> build()
+	private static Map<SeaChartSea, Set<SeaChartGearRequirement>> build()
 	{
-		Map<String, Set<SeaChartGearRequirement>> map = new HashMap<>();
-		tag(map, SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM, "Porth Gwenith", "Porth Neigwl", "Rainbow Reef", "Southern Expanse");
-		tag(map, SeaChartGearRequirement.ETERNAL_BRAZIER, "Weiss Melt", "Everwinter Sea", "Stoneheart Sea", "Weissmere", "Winters Edge", "Shiverwake Expanse", "Idestia Strait", "Lunar Sea", "Kannski Tides", "Vs Belt");
-		tag(map, SeaChartGearRequirement.INOCULATION_STATION, "Backwater", "Breakbone Strait", "Mythic Sea", "Sea Of Souls", "Zul Egil");
+		Map<SeaChartSea, Set<SeaChartGearRequirement>> map = new EnumMap<>(SeaChartSea.class);
+		tag(map, SeaChartGearRequirement.ADAMANT_KEEL_OR_HELM,
+			SeaChartSea.PISCATORIS_SEA, SeaChartSea.PORTH_GWENITH, SeaChartSea.PORTH_NEIGWL, SeaChartSea.TIRANNWN_BIGHT,
+			SeaChartSea.RAINBOW_REEF, SeaChartSea.SOUTHERN_EXPANSE);
+		tag(map, SeaChartGearRequirement.ETERNAL_BRAZIER,
+			SeaChartSea.WEISS_MELT, SeaChartSea.EVERWINTER_SEA, SeaChartSea.STONEHEART_SEA, SeaChartSea.WEISSMERE,
+			SeaChartSea.WINTERS_EDGE, SeaChartSea.SHIVERWAKE_EXPANSE, SeaChartSea.IDESTIA_STRAIT, SeaChartSea.LUNAR_SEA,
+			SeaChartSea.KANNSKI_TIDES, SeaChartSea.VS_BELT);
+		tag(map, SeaChartGearRequirement.INOCULATION_STATION,
+			SeaChartSea.BACKWATER, SeaChartSea.BREAKBONE_STRAIT, SeaChartSea.MYTHIC_SEA, SeaChartSea.SEA_OF_SOULS,
+			SeaChartSea.ZUL_EGIL);
+		tag(map, SeaChartGearRequirement.MAST_UPGRADE, SeaChartSea.KHARAZI_STRAIT, SeaChartSea.THE_STORM_TEMPOR);
 		return Collections.unmodifiableMap(map);
 	}
 
-	private static void tag(Map<String, Set<SeaChartGearRequirement>> map, SeaChartGearRequirement requirement, String... seaNames)
+	private static void tag(Map<SeaChartSea, Set<SeaChartGearRequirement>> map, SeaChartGearRequirement requirement, SeaChartSea... seas)
 	{
-		for (String seaName : seaNames)
+		for (SeaChartSea sea : seas)
 		{
-			map.computeIfAbsent(seaName, k -> EnumSet.noneOf(SeaChartGearRequirement.class)).add(requirement);
+			map.computeIfAbsent(sea, s -> EnumSet.noneOf(SeaChartGearRequirement.class)).add(requirement);
 		}
 	}
 
 	/**
-	 * @return the gear requirement(s) this task's sea is confirmed to need, or an empty set if
-	 * none are confirmed (see class Javadoc caveat about drink-crate/generic tasks).
+	 * @return the gear requirement(s) this task needs -- its sea's hazard (if any) plus
+	 * {@link SeaChartGearRequirement#REQUIRES_RAFT} if this specific task is one of the two that
+	 * needs one -- or an empty set if none apply.
 	 */
-	static Set<SeaChartGearRequirement> forTaskName(String taskName)
+	static Set<SeaChartGearRequirement> forTask(SeaChartTask task)
 	{
-		Set<SeaChartGearRequirement> found = BY_SEA_NAME.get(taskName);
-		return found == null ? Collections.emptySet() : Collections.unmodifiableSet(found);
+		Set<SeaChartGearRequirement> seaRequirements = BY_SEA.get(task.getSea());
+		if (!RAFT_REQUIRED_TASK_IDS.contains(task.getTaskId()))
+		{
+			return seaRequirements == null ? Collections.emptySet() : Collections.unmodifiableSet(seaRequirements);
+		}
+
+		Set<SeaChartGearRequirement> combined = seaRequirements == null
+			? EnumSet.noneOf(SeaChartGearRequirement.class) : EnumSet.copyOf(seaRequirements);
+		combined.add(SeaChartGearRequirement.REQUIRES_RAFT);
+		return Collections.unmodifiableSet(combined);
 	}
 }
