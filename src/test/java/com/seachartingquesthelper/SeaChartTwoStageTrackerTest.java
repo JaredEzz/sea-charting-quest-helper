@@ -14,9 +14,15 @@ import org.junit.Test;
 
 /**
  * Covers the chat-message-triggered stage-two re-targeting rules in
- * {@link SeaChartTwoStageTracker}: the verbatim Weather success message and the verbatim Current
- * duck release message must resolve to the task's <em>secondary</em> location -- and nothing
- * else may (wrong message, wrong chat type, spoofable player chat, a type mismatch).
+ * {@link SeaChartTwoStageTracker}.
+ *
+ * <p>Weather is three-phase: collecting the station moves the target from primary (troll) to
+ * secondary (search area); the return-success message moves it back to primary. Current duck is
+ * two-phase: release moves the target from primary to secondary and it stays there until the task
+ * completes -- there's no return leg.
+ *
+ * <p>Nothing else may trigger a re-target: wrong message, wrong chat type, spoofable player chat,
+ * or a type mismatch between the signal and the resolved active task.
  *
  * <p>Current duck fires on <em>release</em> ("You release your current duck..."), not on
  * arrival ("...comes to a stop"): the destination is static, known task data, so it's useful to
@@ -29,16 +35,22 @@ import org.junit.Test;
  * play a player just sails up to a duck or troll directly without ever pre-clicking its row, so
  * that gate made the feature almost never fire. {@link SeaChartTwoStageTracker#handleTrigger}
  * therefore takes no "current route target" parameter at all any more -- it always returns the
- * secondary location once a task is resolved, and the caller re-targets exactly as it would for
+ * relevant location once a task is resolved, and the caller re-targets exactly as it would for
  * a manual click.
  */
 public class SeaChartTwoStageTrackerTest
 {
 	/**
-	 * Verbatim Weather stage-two success message, captured from a real play session's client
-	 * log. The NPC name ("Meaty Aura Logist") varies per weather-troll task.
+	 * Verbatim message printed when the weather troll hands over the portable station,
+	 * captured from a real play session's client log.
 	 */
-	private static final String WEATHER_MESSAGE =
+	private static final String WEATHER_COLLECTED_MESSAGE = "The troll hands you a portable weather station.";
+
+	/**
+	 * Verbatim Weather stage-two success (return) message, captured from a real play session's
+	 * client log. The NPC name ("Meaty Aura Logist") varies per weather-troll task.
+	 */
+	private static final String WEATHER_RETURN_MESSAGE =
 		"You find a spot where the winds have dropped. You fill the station's log and your"
 			+ " charts with interesting data. You should now return to Meaty Aura Logist where"
 			+ " she gave you the weather station.";
@@ -68,9 +80,9 @@ public class SeaChartTwoStageTrackerTest
 	}
 
 	@Test
-	public void weatherSuccessMessageResolvesToSecondaryNotPrimary()
+	public void weatherCollectedMessageResolvesToSecondary()
 	{
-		WorldPoint target = tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask);
+		WorldPoint target = tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), weatherTask);
 
 		assertEquals(weatherTask.getSecondaryLocation(), target);
 		assertFalse(weatherTask.getLocation().equals(target));
@@ -78,20 +90,44 @@ public class SeaChartTwoStageTrackerTest
 	}
 
 	@Test
+	public void weatherReturnMessageResolvesBackToPrimaryNotSecondary()
+	{
+		tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), weatherTask);
+		assertTrue(tracker.isStageTwo(weatherTask));
+
+		WorldPoint target = tracker.handleTrigger(gameMessage(WEATHER_RETURN_MESSAGE), weatherTask);
+
+		assertEquals(weatherTask.getLocation(), target);
+		assertFalse(weatherTask.getSecondaryLocation().equals(target));
+		assertFalse(tracker.isStageTwo(weatherTask));
+	}
+
+	@Test
+	public void weatherReturnMessageResolvesToPrimaryEvenWithoutAPriorCollectedSignal()
+	{
+		// Re-targeting is unconditional -- the return message alone must still resolve to the
+		// troll's location, matching how a player could join the plugin mid-task.
+		WorldPoint target = tracker.handleTrigger(gameMessage(WEATHER_RETURN_MESSAGE), weatherTask);
+
+		assertEquals(weatherTask.getLocation(), target);
+		assertFalse(tracker.isStageTwo(weatherTask));
+	}
+
+	@Test
 	public void weatherMessageMatchesRegardlessOfWhichNpcIssuedTheStation()
 	{
 		// The NPC name is per-task; the match must key on the stable template text only.
-		String otherNpc = WEATHER_MESSAGE.replace("Meaty Aura Logist", "Gusty Cloud Watcher");
+		String otherNpc = WEATHER_RETURN_MESSAGE.replace("Meaty Aura Logist", "Gusty Cloud Watcher");
 
-		assertEquals(weatherTask.getSecondaryLocation(), tracker.handleTrigger(gameMessage(otherNpc), weatherTask));
+		assertEquals(weatherTask.getLocation(), tracker.handleTrigger(gameMessage(otherNpc), weatherTask));
 	}
 
 	@Test
 	public void weatherMessageWithColourTagsStillMatches()
 	{
-		String tagged = "<col=ef1020>" + WEATHER_MESSAGE + "</col>";
+		String tagged = "<col=ef1020>" + WEATHER_RETURN_MESSAGE + "</col>";
 
-		assertEquals(weatherTask.getSecondaryLocation(), tracker.handleTrigger(gameMessage(tagged), weatherTask));
+		assertEquals(weatherTask.getLocation(), tracker.handleTrigger(gameMessage(tagged), weatherTask));
 	}
 
 	@Test
@@ -131,14 +167,14 @@ public class SeaChartTwoStageTrackerTest
 	@Test
 	public void noResolvedActiveTaskMeansNoRetarget()
 	{
-		assertNull(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), null));
+		assertNull(tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), null));
 	}
 
 	@Test
 	public void playerTypedChatCannotSpoofARetarget()
 	{
 		ChatMessage spoofed = new ChatMessage(null, ChatMessageType.PUBLICCHAT, "SomePlayer",
-			WEATHER_MESSAGE, null, 0);
+			WEATHER_COLLECTED_MESSAGE, null, 0);
 
 		assertNull(SeaChartTwoStageTracker.triggerType(spoofed));
 		assertNull(tracker.handleTrigger(spoofed, weatherTask));
@@ -158,7 +194,7 @@ public class SeaChartTwoStageTrackerTest
 	{
 		// A weather signal while the nearest candidate of that type resolution handed us a duck
 		// task (or vice versa) must be ignored -- a category mix-up should never re-target.
-		assertNull(tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), duckTask));
+		assertNull(tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), duckTask));
 		assertNull(tracker.handleTrigger(gameMessage(DUCK_MESSAGE), weatherTask));
 	}
 
@@ -167,7 +203,7 @@ public class SeaChartTwoStageTrackerTest
 	{
 		assertEquals(weatherTask.getLocation(), tracker.effectiveLocation(weatherTask));
 
-		tracker.handleTrigger(gameMessage(WEATHER_MESSAGE), weatherTask);
+		tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), weatherTask);
 		assertEquals(weatherTask.getSecondaryLocation(), tracker.effectiveLocation(weatherTask));
 
 		tracker.onTaskCompleted(weatherTask);
@@ -176,9 +212,20 @@ public class SeaChartTwoStageTrackerTest
 	}
 
 	@Test
-	public void triggerTypeClassifiesBothSignals()
+	public void effectiveLocationReturnsToPrimaryAfterTheReturnMessageWithoutWaitingForCompletion()
 	{
-		assertEquals(SeaChartTaskType.WEATHER, SeaChartTwoStageTracker.triggerType(gameMessage(WEATHER_MESSAGE)));
+		tracker.handleTrigger(gameMessage(WEATHER_COLLECTED_MESSAGE), weatherTask);
+		assertEquals(weatherTask.getSecondaryLocation(), tracker.effectiveLocation(weatherTask));
+
+		tracker.handleTrigger(gameMessage(WEATHER_RETURN_MESSAGE), weatherTask);
+		assertEquals(weatherTask.getLocation(), tracker.effectiveLocation(weatherTask));
+	}
+
+	@Test
+	public void triggerTypeClassifiesAllThreeSignals()
+	{
+		assertEquals(SeaChartTaskType.WEATHER, SeaChartTwoStageTracker.triggerType(gameMessage(WEATHER_COLLECTED_MESSAGE)));
+		assertEquals(SeaChartTaskType.WEATHER, SeaChartTwoStageTracker.triggerType(gameMessage(WEATHER_RETURN_MESSAGE)));
 		assertEquals(SeaChartTaskType.CURRENT_DUCK, SeaChartTwoStageTracker.triggerType(gameMessage(DUCK_MESSAGE)));
 		assertNull(SeaChartTwoStageTracker.triggerType(gameMessage("Your bird's nest falls to the ground.")));
 		assertNull(SeaChartTwoStageTracker.triggerType(null));

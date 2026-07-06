@@ -27,9 +27,13 @@ import org.mockito.ArgumentCaptor;
 /**
  * End-to-end coverage of the automatic stage-two route re-target through the real plugin event
  * handlers: receive the verbatim in-game trigger message as a {@link ChatMessage}, and verify the
- * plugin posts a Shortest Path {@link PluginMessage} carrying the task's <em>secondary</em>
- * location -- with no manual re-click. Collaborators are mocked; the decision logic under test is
- * real.
+ * plugin posts a Shortest Path {@link PluginMessage} carrying the correct location -- with no
+ * manual re-click. Collaborators are mocked; the decision logic under test is real.
+ *
+ * <p>Weather is three-phase: collecting the station (from the troll, at the primary location)
+ * re-targets to the secondary (search) location; the return-success message re-targets back to
+ * primary. Current duck is two-phase: release re-targets from primary to secondary and stays
+ * there -- there's no return leg.
  *
  * <p>Current duck's trigger is the release message ("You release your current duck..."), fired
  * at task start -- not the arrival message ("...comes to a stop") -- since the destination is
@@ -42,10 +46,18 @@ import org.mockito.ArgumentCaptor;
  * task's panel row first. Confirmed via a real play session, this almost never happens: a player
  * just sails up to a duck directly. That test exercises exactly that scenario (no
  * {@code onTaskClicked} call at all) and would have caught the bug before it shipped.
+ *
+ * <p><b>{@link #weatherReturnMessageAutoRetargetsRouteBackToPrimaryLocation} is the second
+ * live-bug regression test:</b> an earlier version treated Weather as two-phase and pointed the
+ * return message at the secondary location, sending the player away from the troll they'd just
+ * been told to return to. Confirmed via direct player report (Current duck worked, Weather
+ * didn't) -- consistent with only Weather having this extra return-to-primary leg.
  */
 public class SeaChartingQuestHelperPluginRetargetTest
 {
-	private static final String WEATHER_MESSAGE =
+	private static final String WEATHER_COLLECTED_MESSAGE = "The troll hands you a portable weather station.";
+
+	private static final String WEATHER_RETURN_MESSAGE =
 		"You find a spot where the winds have dropped. You fill the station's log and your"
 			+ " charts with interesting data. You should now return to Meaty Aura Logist where"
 			+ " she gave you the weather station.";
@@ -91,18 +103,34 @@ public class SeaChartingQuestHelperPluginRetargetTest
 	}
 
 	@Test
-	public void weatherMessageAutoRetargetsClickedRouteToSecondaryLocation() throws Exception
+	public void weatherCollectedMessageAutoRetargetsClickedRouteToSecondaryLocation() throws Exception
 	{
 		SeaChartTask weather = firstTaskOfType(SeaChartTaskType.WEATHER);
 		standNear(weather.getLocation());
 
 		clickTask(weather);
-		plugin.onChatMessage(gameMessage(WEATHER_MESSAGE));
+		plugin.onChatMessage(gameMessage(WEATHER_COLLECTED_MESSAGE));
 
 		List<WorldPoint> targets = capturePostedTargets(2);
 		assertEquals("click routes to the primary location", weather.getLocation(), targets.get(0));
-		assertEquals("stage-two signal re-routes to the secondary location, hands-free",
+		assertEquals("collected signal re-routes to the secondary location, hands-free",
 			weather.getSecondaryLocation(), targets.get(1));
+	}
+
+	@Test
+	public void weatherReturnMessageAutoRetargetsRouteBackToPrimaryLocation() throws Exception
+	{
+		SeaChartTask weather = firstTaskOfType(SeaChartTaskType.WEATHER);
+		standNear(weather.getLocation());
+
+		plugin.onChatMessage(gameMessage(WEATHER_COLLECTED_MESSAGE));
+		plugin.onChatMessage(gameMessage(WEATHER_RETURN_MESSAGE));
+
+		List<WorldPoint> targets = capturePostedTargets(2);
+		assertEquals("collected signal routes to the secondary (search) location",
+			weather.getSecondaryLocation(), targets.get(0));
+		assertEquals("return signal routes BACK to the primary (troll) location, hands-free",
+			weather.getLocation(), targets.get(1));
 	}
 
 	@Test
@@ -138,14 +166,14 @@ public class SeaChartingQuestHelperPluginRetargetTest
 		assertEquals(duck.getSecondaryLocation(), targets.get(0));
 	}
 
-	/** Same live-bug scenario, for Weather. */
+	/** Same live-bug scenario, for Weather's collected signal. */
 	@Test
-	public void weatherMessageAutoRetargetsRouteWithNoPriorPanelClickAtAll() throws Exception
+	public void weatherCollectedMessageAutoRetargetsRouteWithNoPriorPanelClickAtAll() throws Exception
 	{
 		SeaChartTask weather = firstTaskOfType(SeaChartTaskType.WEATHER);
 		standNear(weather.getLocation());
 
-		plugin.onChatMessage(gameMessage(WEATHER_MESSAGE));
+		plugin.onChatMessage(gameMessage(WEATHER_COLLECTED_MESSAGE));
 
 		List<WorldPoint> targets = capturePostedTargets(1);
 		assertEquals(weather.getSecondaryLocation(), targets.get(0));
@@ -159,14 +187,14 @@ public class SeaChartingQuestHelperPluginRetargetTest
 	 * Javadoc: that gate was the bug).
 	 */
 	@Test
-	public void weatherMessageRedirectsARouteEvenIfPreviouslyAimedAtAnUnrelatedTask() throws Exception
+	public void weatherCollectedMessageRedirectsARouteEvenIfPreviouslyAimedAtAnUnrelatedTask() throws Exception
 	{
 		SeaChartTask weather = firstTaskOfType(SeaChartTaskType.WEATHER);
 		SeaChartTask unrelated = firstTaskOfType(SeaChartTaskType.SPYGLASS);
 		standNear(weather.getLocation());
 
 		clickTask(unrelated);
-		plugin.onChatMessage(gameMessage(WEATHER_MESSAGE));
+		plugin.onChatMessage(gameMessage(WEATHER_COLLECTED_MESSAGE));
 
 		List<WorldPoint> targets = capturePostedTargets(2);
 		assertEquals(unrelated.getLocation(), targets.get(0));
@@ -179,9 +207,10 @@ public class SeaChartingQuestHelperPluginRetargetTest
 		SeaChartTask weather = firstTaskOfType(SeaChartTaskType.WEATHER);
 		standNear(weather.getLocation());
 
-		// Signal arrives first (auto-posts to the secondary location -- see the no-prior-click
-		// test above), then a later click on the same row should route there too, not the primary.
-		plugin.onChatMessage(gameMessage(WEATHER_MESSAGE));
+		// Collected signal arrives first (auto-posts to the secondary location -- see the
+		// no-prior-click test above), then a later click on the same row should route there too,
+		// not the primary.
+		plugin.onChatMessage(gameMessage(WEATHER_COLLECTED_MESSAGE));
 		clickTask(weather);
 
 		List<WorldPoint> targets = capturePostedTargets(2);

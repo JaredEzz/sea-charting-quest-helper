@@ -36,22 +36,32 @@ import net.runelite.client.util.Text;
  * Tracks the two-stage sea chart task types -- {@link SeaChartTaskType#WEATHER} and
  * {@link SeaChartTaskType#CURRENT_DUCK} -- whose relevant map target <em>moves</em> partway
  * through the task, and decides when the plugin should automatically re-target its Shortest Path
- * route from the task's primary {@link SeaChartTask#getLocation()} to its
+ * route between the task's primary {@link SeaChartTask#getLocation()} and its
  * {@link SeaChartTask#getSecondaryLocation()}.
  *
- * <p><b>Weather tasks:</b> the player borrows a portable weather station from a weather troll,
- * hunts down the calm wind spot near the task's primary point using in-game directional clues
- * (not automated here -- the clues are the gameplay), and on success the game prints, verbatim
- * (captured from a real client log):
+ * <p><b>Weather tasks are three-phase, not two.</b> The player first sails to the weather troll
+ * (the primary location) and collects a portable weather station -- confirmed verbatim from a
+ * real client log:
+ *
+ * <pre>The troll hands you a portable weather station.</pre>
+ *
+ * <p>At that point the target becomes the secondary location -- the search area where the player
+ * hunts down the calm-wind spot using in-game directional clues (not automated here -- the clues
+ * are the gameplay). On success the game prints, verbatim:
  *
  * <pre>You find a spot where the winds have dropped. You fill the station's log and your charts
  * with interesting data. You should now return to Meaty Aura Logist where she gave you the
  * weather station.</pre>
  *
  * <p>The NPC name varies per task, so matching keys on the stable template text: the
- * {@code "You should now return to"} phrase plus the {@code "weather station"} suffix. Once seen,
- * the task's live target becomes the secondary point -- where the weather troll who issued the
- * station is.
+ * {@code "You should now return to"} phrase plus the {@code "weather station"} suffix. This is the
+ * <em>return</em> leg, so the target goes back to the <b>primary</b> location (the troll) -- not
+ * forward to the secondary one. An earlier version of this class treated Weather as a simple
+ * two-phase primary-then-secondary task and pointed the route at the secondary location on this
+ * return message; that was backwards, since the secondary location is the middle-phase search
+ * area, not the troll, so the route would send the player away from the troll they'd just been
+ * told to return to (confirmed by direct player report: Current Duck's re-target worked, Weather's
+ * did not -- consistent with only Weather having this extra return-to-primary leg).
  *
  * <p><b>Current duck tasks:</b> the player places the current duck at the rippled start point
  * (the primary location) and it drifts along the current to a predetermined end point (the
@@ -93,12 +103,20 @@ import net.runelite.client.util.Text;
 class SeaChartTwoStageTracker
 {
 	/**
+	 * Message printed the moment the weather troll hands over the portable station -- the first
+	 * leg's end, and the moment the target should switch forward to the secondary (search) point.
+	 * Confirmed verbatim from a real client log.
+	 */
+	static final String WEATHER_COLLECTED_PHRASE = "hands you a portable weather station";
+
+	/**
 	 * Stable template fragment of the weather success message; the surrounding NPC name varies
-	 * per weather-troll task. See the class Javadoc for the full verbatim message.
+	 * per weather-troll task. See the class Javadoc for the full verbatim message. This is the
+	 * return leg -- the target should switch back to the primary (troll) point.
 	 */
 	static final String WEATHER_RETURN_PHRASE = "You should now return to";
 
-	/** Second weather key, guarding against unrelated "return to" texts. */
+	/** Second weather-return key, guarding against unrelated "return to" texts. */
 	static final String WEATHER_STATION_PHRASE = "weather station";
 
 	/**
@@ -127,9 +145,14 @@ class SeaChartTwoStageTracker
 		}
 
 		final String message = Text.removeTags(event.getMessage());
+		if (message.contains(WEATHER_COLLECTED_PHRASE))
+		{
+			log.debug("Chat message matched the Weather stage-two \"collected\" trigger phrase: \"{}\"", message);
+			return SeaChartTaskType.WEATHER;
+		}
 		if (message.contains(WEATHER_RETURN_PHRASE) && message.contains(WEATHER_STATION_PHRASE))
 		{
-			log.debug("Chat message matched the Weather stage-two trigger phrase: \"{}\"", message);
+			log.debug("Chat message matched the Weather stage-two \"return\" trigger phrase: \"{}\"", message);
 			return SeaChartTaskType.WEATHER;
 		}
 		if (message.contains(CURRENT_DUCK_RELEASE_PHRASE))
@@ -150,18 +173,21 @@ class SeaChartTwoStageTracker
 	/**
 	 * Processes a possible stage-two trigger.
 	 *
-	 * <p>If {@code event} is a stage-two signal matching {@code activeTask}'s type, the task is
-	 * marked stage-two -- {@link #effectiveLocation} and therefore the panel's distances now
-	 * point at the secondary location -- and this returns that secondary location so the caller
-	 * can re-target the Shortest Path route with it, unconditionally, exactly as if the player
-	 * had just clicked this task's panel row. There is deliberately no gate requiring a prior
-	 * manual selection of this task (see the class Javadoc for why that gate was removed).
+	 * <p>If {@code event} is a stage-two signal matching {@code activeTask}'s type, this returns
+	 * the location to re-target the Shortest Path route to, unconditionally, exactly as if the
+	 * player had just clicked this task's panel row. There is deliberately no gate requiring a
+	 * prior manual selection of this task (see the class Javadoc for why that gate was removed).
+	 *
+	 * <p>For Weather, which leg fired determines the direction: the "collected" message moves the
+	 * task <em>into</em> stage-two (target becomes the secondary/search location); the "return"
+	 * message moves it <em>out</em> of stage-two (target goes back to the primary/troll location).
+	 * For Current duck there is only the one release signal, which moves the task into stage-two.
 	 *
 	 * @param event      the chat message just received
 	 * @param activeTask the nearest incomplete task of the trigger's type -- the caller's best
 	 *                   identification of the task the player is actually doing; may be null
-	 * @return the secondary location to re-target the route to, or {@code null} if this message
-	 * wasn't a trigger, didn't resolve to a task, or that task has no secondary location
+	 * @return the location to re-target the route to, or {@code null} if this message wasn't a
+	 * trigger, didn't resolve to a task, or the relevant location isn't known for that task
 	 */
 	WorldPoint handleTrigger(ChatMessage event, SeaChartTask activeTask)
 	{
@@ -185,6 +211,20 @@ class SeaChartTwoStageTracker
 			log.debug("{} stage-two trigger fired but the resolved active task {} is a {} task"
 				+ " -- type mismatch, skipping", type, activeTask, activeTask.getType());
 			return null;
+		}
+
+		final String message = Text.removeTags(event.getMessage());
+		final boolean isWeatherReturn = type == SeaChartTaskType.WEATHER
+			&& message.contains(WEATHER_RETURN_PHRASE) && message.contains(WEATHER_STATION_PHRASE);
+
+		if (isWeatherReturn)
+		{
+			final boolean wasStageTwo = stageTwo.remove(activeTask);
+			final WorldPoint primary = activeTask.getLocation();
+			log.debug("Weather stage-two \"return\" trigger resolved to task {} (was stage-two:"
+				+ " {}) -- re-targeting route BACK to primary (troll) location {}, unconditionally",
+				activeTask, wasStageTwo, primary);
+			return primary;
 		}
 
 		final WorldPoint secondary = activeTask.getSecondaryLocation();

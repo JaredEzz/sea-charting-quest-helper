@@ -236,8 +236,8 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 			+ " routeTask = {} (routeTask is informational only -- not required to match)",
 			triggerType, activeTask, routeTask);
 
-		final WorldPoint secondary = twoStageTracker.handleTrigger(event, activeTask);
-		if (secondary == null)
+		final WorldPoint target = twoStageTracker.handleTrigger(event, activeTask);
+		if (target == null)
 		{
 			log.debug("Stage-two {} trigger did not result in a re-target (see"
 				+ " SeaChartTwoStageTracker's debug line above for the reason)", triggerType);
@@ -245,9 +245,10 @@ public class SeaChartingQuestHelperPlugin extends Plugin
 		}
 
 		routeTask = activeTask;
-		postRouteTarget(secondary);
-		log.debug("Stage-two {} trigger auto re-targeted the route to task {}'s secondary"
-			+ " location {}, with no manual click required", triggerType, activeTask, secondary);
+		postRouteTarget(target);
+		log.debug("Stage-two {} trigger auto re-targeted the route to task {}'s new location {}"
+			+ " (see SeaChartTwoStageTracker's debug line above for which leg/direction), with no"
+			+ " manual click required", triggerType, activeTask, target);
 	}
 
 	/**
