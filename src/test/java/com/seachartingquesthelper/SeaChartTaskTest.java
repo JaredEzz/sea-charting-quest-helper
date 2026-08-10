@@ -324,7 +324,7 @@ public class SeaChartTaskTest
 			SeaChartTask.TASK_210.getNote());
 		assertEquals("A raft is recommended but not required to reach this location.",
 			SeaChartTask.TASK_39.getNote());
-		assertEquals("A skiff is necessary to reach this location.",
+		assertEquals("A skiff is necessary to reach this location.\nRiddle answer: Thatch spar dense",
 			SeaChartTask.TASK_170.getNote());
 	}
 
