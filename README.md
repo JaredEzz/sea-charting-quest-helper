@@ -129,9 +129,15 @@ The sea chart task table (locations, completion varbits, object/npc ids, level r
 mechanically compiled from the public data in the **Sailing** plugin by
 [LlemonDuck](https://github.com/LlemonDuck/sailing) (BSD-2-Clause). Those are Jagex's public
 `gameval` game-data constants, not that plugin's creative expression, but the compiled table itself
-was real work and is credited in the LICENSE and in `SeaChartTask.java`'s header. No source code
+was real work and is credited here and in `SeaChartTask.java`'s header. No source code
 from that project is reused; this plugin does not depend on it at compile time or runtime, and
 only vendors a fresh copy of the data table as its own enum.
+
+Two smaller data tables come from the [OSRS Wiki](https://oldschool.runescape.wiki)
+([CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)): the per-task sea/ocean
+classification behind the nearest-port hint (`SeaChartRegion.java`) and the per-sea boat-facility
+requirements (`SeaChartGearRequirements.java`). Both take only factual game-mechanic mappings,
+not the wiki's prose.
 
 ### Known caveats
 
